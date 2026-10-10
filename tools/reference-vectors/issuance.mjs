@@ -1,13 +1,13 @@
 // Records the pinned signify-ts's credential issuance and revocation artifacts.
 //
-// Roadmap 6.1 ported the two `Saider.saidify(...)` expressions that build a credential. What is
+// The credential builder ports the two `Saider.saidify(...)` expressions that build a credential. What is
 // left of the *pure* half of `Credentials.issue` and `Credentials.revoke` is the rest of what they
 // construct before anything is sent: the `iss` transaction event, the `rev` transaction event, the
 // interaction event that anchors either in the issuer's key event log, and the two CESR
 // attachments an IPEX grant later carries. Everything after that — the keeper signatures' place in
-// a request body, the path, the `POST`/`DELETE` — is Roadmap 6.11.
+// a request body, the path, the `POST`/`DELETE` — is the Signify client's.
 //
-// The evidence has the same two halves as Roadmap 6.1's, for the same reason: the ported unit is a
+// The evidence has the same two halves as the credential fixture's, for the same reason: the ported unit is a
 // set of expressions rather than an exported function.
 //
 //   1. The **expressions themselves**, read from the reference's own syntax tree by its own pinned
@@ -248,7 +248,7 @@ function recordRevocation(note, args) {
   };
 }
 
-// The credential the pinned `test/app/test-utils.ts` checks in, which Roadmap 6.1 reproduces.
+// The credential the pinned `test/app/test-utils.ts` checks in, which the credential builder reproduces.
 const MOCK_CREDENTIAL = "EMwcsEMUEruPXVwPCW7zmqmN8m0I3CihxolBm-RDrsJo";
 const MOCK_ISSUER = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
 const MOCK_REGISTRY = "EGK216v1yguLfex4YRFnG7k1sXRjh3OKY7QqzdKsx7df";
@@ -390,7 +390,7 @@ if (grantAttachment === null) {
 
 // The pinned IPEX test builds its own `iss` and anchor, then asserts the grant that embeds them.
 // Rebuilding both here and finding their bytes inside that assertion is what makes the published
-// values evidence for this module rather than for Roadmap 6.3's.
+// values evidence for this module rather than for `ipex`.
 const pinnedIss = issuanceEvent({
   credential: MOCK_CREDENTIAL,
   registry: MOCK_REGISTRY,
@@ -462,13 +462,13 @@ const quirks = {
     () => ({ literal_sequence_number: revocationEvent({ credential: MOCK_CREDENTIAL, registry: MOCK_REGISTRY, prior: MOCK_ISSUANCE, timestamp: MOCK_TIMESTAMP }).s }),
   ),
   revocation_reads_the_registry_from_ri_or_rd: quirk(
-    "revocation accepts the KERI 2 spelling `rd` as well as `ri`, and throws when neither is present — but Roadmap 6.1's builder always writes `ri`, so the `rd` branch is unreachable from a credential this port built.",
-    "the registry is a typed required input; `rd` is unrepresentable here, as `PORTING.md` §5.12 already records CESR 2 to be out of scope.",
+    "revocation accepts the KERI 2 spelling `rd` as well as `ri`, and throws when neither is present — but the credential builder always writes `ri`, so the `rd` branch is unreachable from a credential this port built.",
+    "the registry is a typed required input; `rd` is unrepresentable here, as CESR 2 is out of scope.",
     () => ({ fallback_expression: declarations.revocation_registry_fallback }),
   ),
   revocation_timestamp_defaults_to_the_clock: {
     expression: firstText(revokeMethod, (node) => ts.isCallExpression(node) && node.getText().includes("toISOString")),
-    note: "the revocation timestamp defaults to a clock reading with three zero digits standing in for microseconds it never had, exactly as Roadmap 6.1's attribute timestamp does.",
+    note: "the revocation timestamp defaults to a clock reading with three zero digits standing in for microseconds it never had, exactly as the credential's attribute timestamp does.",
     rust_decision: "required: a protocol crate reads no clock, so the timestamp is a validated `Timestamp` the caller supplies.",
   },
   issuance_reuses_the_credential_timestamp: quirk(
@@ -501,7 +501,7 @@ const quirks = {
     scan_bis: scan("Ilks.bis"),
     scan_brv: scan("Ilks.brv"),
     note: "the ilk table declares `bis` and `brv` — the backed spellings of issuance and revocation, used when a registry has backers — but nothing in the pinned tree constructs either.",
-    rust_decision: "`N/A`, on the same evidence as Roadmap 3.6's receipt and query messages; the ilks exist in `signify-keri::event::kind` and no builder is invented here.",
+    rust_decision: "`N/A`, on the same evidence as keri-protocol's receipt and query messages; the ilks exist in `keri-protocol::event::kind` and no builder is invented here.",
   },
   revocation_prior_comes_from_the_server: {
     expression: firstText(revokeMethod, (node) => ts.isPropertyAssignment(node) && node.getText().startsWith("p:")),
@@ -530,7 +530,7 @@ const fixture = {
     issuer: MOCK_ISSUER,
     registry: MOCK_REGISTRY,
     timestamp: MOCK_TIMESTAMP,
-    note: "every value is deterministic: none of these builders derives a key, and the credential, issuer, registry, and timestamp are the pinned `test-utils.ts` mock credential's own, which Roadmap 6.1 reproduces byte for byte",
+    note: "every value is deterministic: none of these builders derives a key, and the credential, issuer, registry, and timestamp are the pinned `test-utils.ts` mock credential's own, which the credential builder reproduces byte for byte",
   },
   declarations,
   issuances,

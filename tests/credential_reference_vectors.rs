@@ -311,7 +311,7 @@ fn the_ported_expressions_are_the_references_own() -> Result<(), Box<dyn Error>>
     assert!(container.contains("Protocols.ACDC"));
     assert_ne!(declarations.credential_saidify_note, "");
 
-    // The third expression is the TEL issuance event, which is Roadmap 6.2's and untouched here.
+    // The third expression is the TEL issuance event, which is `issuance`'s and untouched here.
     assert!(declarations.issuance_saidify_expression.contains("t: Ilks.iss"));
     assert_ne!(declarations.issuance_saidify_note, "");
 
@@ -360,7 +360,7 @@ fn the_upstream_declarations_map_onto_this_port() -> Result<(), Box<dyn Error>> 
         .collect();
     assert_eq!(required, ["a"]);
 
-    // `CredentialFilter` is request shaping and goes to Roadmap 6.11 with the endpoint.
+    // `CredentialFilter` is request shaping and goes to the Signify client with the endpoint.
     let filter: Vec<&str> = declarations
         .credential_filter
         .iter()

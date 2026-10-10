@@ -2,7 +2,7 @@
 
 //! Fuzzes credential issuance and revocation artifacts over hostile key state and inputs.
 //!
-//! The untrusted input here is different from Roadmap 6.1's. A transaction event's own fields are
+//! The untrusted input here is different from the credential target's. A transaction event's own fields are
 //! typed and short, but the **key state** the anchor is built over is whatever an agent reported:
 //! its position, its digest, and its configuration are all remote values. An issuer that anchors
 //! over a state it should have refused signs a key event committing to a log position it does not

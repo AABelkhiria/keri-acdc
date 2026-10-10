@@ -64,14 +64,14 @@
     "notes": {
       "payloads": "apply carries the schema and its selective-disclosure attributes beside the message; offer, agree, and grant carry the message alone; admit passes `args.message` through with no default, so an admit with no message emits an attribute block carrying no `m` at all",
       "embeds": "only offer and grant embed anything: offer embeds the credential with no attachment, grant embeds the credential, its issuance event, and the anchoring key event, each with the attachment that authenticates the next",
-      "signing": "`createExchangeMessage` is `exchange(...)` — Roadmap 3.8 — followed by one keeper signature over the serialized message; the attachment stream it returns is the transposed embed material, not the signature"
+      "signing": "`createExchangeMessage` is `exchange(...)` — keri-protocol's exchange builder — followed by one keeper signature over the serialized message; the attachment stream it returns is the transposed embed material, not the signature"
     }
   },
   "embedded_artifacts": {
     "acdc_raw": "{\"v\":\"ACDC10JSON000197_\",\"d\":\"EMwcsEMUEruPXVwPCW7zmqmN8m0I3CihxolBm-RDrsJo\",\"i\":\"EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1\",\"ri\":\"EGK216v1yguLfex4YRFnG7k1sXRjh3OKY7QqzdKsx7df\",\"s\":\"EBfdlu8R27Fbx-ehrqwImnK-8Cm79sqbAQ4MmvEAYqao\",\"a\":{\"d\":\"EK0GOjijKd8_RLYz9qDuuG29YbbXjU8yJuTQanf07b6P\",\"i\":\"EKvn1M6shPLnXTb47bugVJblKMuWC0TcLIePP8p98Bby\",\"dt\":\"2023-08-23T15:16:07.553000+00:00\",\"LEI\":\"5493001KJTIIGC8Y1R17\"}}",
     "iss_raw": "{\"v\":\"KERI10JSON0000ed_\",\"t\":\"iss\",\"d\":\"ENf3IEYwYtFmlq5ZzoI-zFzeR7E3ZNRN2YH_0KAFbdJW\",\"i\":\"EMwcsEMUEruPXVwPCW7zmqmN8m0I3CihxolBm-RDrsJo\",\"s\":\"0\",\"ri\":\"EGK216v1yguLfex4YRFnG7k1sXRjh3OKY7QqzdKsx7df\",\"dt\":\"2023-08-23T15:16:07.553000+00:00\"}",
     "anc_raw": "{\"v\":\"KERI10JSON0000cd_\",\"t\":\"ixn\",\"d\":\"ECVCyxNpB4PJkpLbWqI02WXs1wf7VUxPNY2W28SN2qqm\",\"i\":\"EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1\",\"s\":\"1\",\"p\":\"EMwcsEMUEruPXVwPCW7zmqmN8m0I3CihxolBm-RDrsJo\",\"a\":[{}]}",
-    "note": "the credential, its issuance event, and the anchoring key event a grant embeds; the first two are Roadmap 6.1's and 6.2's own output and the third is the pinned test's, which deliberately seals `[{}]`"
+    "note": "the credential, its issuance event, and the anchoring key event a grant embeds; the first two are the credential builder's and issuance's own output and the third is the pinned test's, which deliberately seals `[{}]`"
   },
   "messages": {
     "apply": {
@@ -308,12 +308,12 @@
       "embed_expression": "{ acdc: [args.acdc, undefined] }",
       "attachment": "",
       "note": "an offer embeds `[args.acdc, undefined]`, and the transposed stream for an embed with no attachment is the empty string — the label is written into the exchange's `e` block but nothing follows it in the attachment stream",
-      "rust_decision": "reproduced: Roadmap 3.8's `ExchangeEmbed::new` without `with_attachment` is exactly this case, and it is distinct from an explicitly empty attachment, which still writes its path."
+      "rust_decision": "reproduced: keri-protocol's `ExchangeEmbed::new` without `with_attachment` is exactly this case, and it is distinct from an explicitly empty attachment, which still writes its path."
     },
     "grant_signs_the_anchor_when_no_attachment_is_given": {
       "expression": "if (atc === undefined) { const keeper = this.client.manager!.get(hab); const sigs = await keeper.sign(b(args.anc.raw)); const sigers = sigs.map((sig: string) => new Siger({ qb64: sig })); const ims = d(messagize(args.anc, sigers)); atc = ims.substring(args.anc.size); }",
       "note": "a grant with no `ancAttachment` signs the anchoring key event with the sender's keeper and takes the attachment off the resulting message — which means the *sender* signs an event belonging to the credential's issuer, whoever that is",
-      "rust_decision": "the anchor attachment is a required input. Roadmap 6.2 produces the issuer's own signed anchor, and a discloser who is not the issuer cannot produce a valid one; making it required means the caller must supply what it actually has."
+      "rust_decision": "the anchor attachment is a required input. Issuance produces the issuer's own signed anchor, and a discloser who is not the issuer cannot produce a valid one; making it required means the caller must supply what it actually has."
     },
     "routes_are_string_literals": {
       "scan": {
@@ -364,16 +364,16 @@
         "scanned_files": 117
       },
       "note": "the five routes appear as bare string literals at their call sites; the pinned `app/exchanging.ts` declares a route table for multisig but none for IPEX",
-      "rust_decision": "a typed `IpexRoute` enum, whose `as_str` is asserted against the literals read from the reference's own syntax tree. The general exchange route table is Roadmap 8.1."
+      "rust_decision": "a typed `IpexRoute` enum, whose `as_str` is asserted against the literals read from the reference's own syntax tree. The general exchange route table is the Signify client's."
     },
     "sender_and_recipient_are_unvalidated": {
       "note": "`senderName` is an alias looked up remotely and `recipient` is free text interpolated into the message; neither is checked, so a typo becomes part of the exchange's identifier",
-      "rust_decision": "the recipient is an `IdentifierPrefix` and the sender is the habitat's own prefix, as Roadmap 3.8 already types them."
+      "rust_decision": "the recipient is an `IdentifierPrefix` and the sender is the habitat's own prefix, as keri-protocol already types them."
     },
     "attributes_are_an_untyped_record": {
       "payload_expression": "data = { m: args.message ?? '', s: args.schemaSaid, a: args.attributes ?? {}, }",
       "note": "an apply's `attributes` is `Record<string, unknown>`, spread into the payload with no bound and no label check",
-      "rust_decision": "an ordered `Sad`, bounded and label-checked exactly as Roadmap 6.1 bounds a credential's attribute block, because it is committed into the exchange's identifier the same way."
+      "rust_decision": "an ordered `Sad`, bounded and label-checked exactly as the credential builder bounds an attribute block, because it is committed into the exchange's identifier the same way."
     }
   }
 }

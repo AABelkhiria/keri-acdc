@@ -6,7 +6,7 @@
 //! transaction log is the only thing that says which it is.
 //!
 //! This module ports the pure half of `Credentials.revoke` in the pinned
-//! `src/keri/app/credentialing.ts`. Submitting the result is Roadmap 6.11.
+//! `src/keri/app/credentialing.ts`. Submitting the result is the Signify client's.
 //!
 //! # What the reference cannot express
 //!

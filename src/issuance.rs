@@ -12,8 +12,8 @@
 //!
 //! This module ports the pure half of `Credentials.issue` in the pinned
 //! `src/keri/app/credentialing.ts`, together with `serializeACDCAttachment` and
-//! `serializeIssExnAttachment` from `src/keri/core/utils.ts`. Submitting the result is Roadmap
-//! 6.11; embedding it in an IPEX grant is Roadmap 6.3.
+//! `serializeIssExnAttachment` from `src/keri/core/utils.ts`. Submitting the result is the Signify
+//! client's; embedding it in an IPEX grant is [`ipex`](crate::ipex)'s.
 //!
 //! # The transaction event borrows the credential's timestamp
 //!

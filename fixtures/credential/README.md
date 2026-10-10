@@ -28,10 +28,10 @@ text and shape in `reference_quirks.timestamp_default_reads_the_clock`.
 
 ## What the evidence is
 
-Roadmap 6.1 ports two expressions — the `Saider.saidify(...)` calls inside `Credentials.issue`
-that build the attribute block and the credential container. Everything else in that method (the
-TEL issuance event, the anchoring interaction, the keeper signatures, the `POST`) is Roadmap 6.2
-and 6.11 and is deliberately not driven.
+The credential builder ports two expressions — the `Saider.saidify(...)` calls inside
+`Credentials.issue` that build the attribute block and the credential container. Everything else
+in that method (the TEL issuance event, the anchoring interaction, the keeper signatures, the
+`POST`) belongs to issuance and to the Signify client and is deliberately not driven.
 
 Because the ported unit is an expression rather than an exported function, the fixture carries two
 independent kinds of evidence:
@@ -92,12 +92,12 @@ rebuilds from its inputs. Rust rebuilds the same bytes and reproduces both publi
   accepted as readily as an absent one. All four are typed here, and the registry and schema are
   required.
 - **The timestamp defaults to the system clock** with three zero digits standing in for microseconds
-  it never had — the same fake precision Roadmap 5.5 recorded on `Signify-Timestamp`. A protocol
+  it never had — the same fake precision keri-http-auth records on `Signify-Timestamp`. A protocol
   crate reads no clock, so it is a required validated `Timestamp`.
 - **`CredentialTypes` has no consumer.** A scan of all 117 `.ts` files in the pinned source and test
   trees finds the needle exactly once, in its own declaration, so it is recorded `N/A` on the same
   evidence as `core/httping.ts`'s `Unqualified`.
 - **`CredentialFilter` is request shaping**, named only in `credentialing.ts` and consumed only by
-  `Credentials.list`, so it goes to Roadmap 6.11 with the endpoint that sends it.
+  `Credentials.list`, so it goes to the Signify client with the endpoint that sends it.
 
 Rust tests consume the checked-in fixture and require neither Node nor network access.

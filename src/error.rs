@@ -149,7 +149,7 @@ pub enum IpexError {
     /// A payload block carries a label the exchange message writes itself.
     ///
     /// The recipient is written into the attribute block first; a payload naming it would
-    /// silently readdress the message, which Roadmap 3.8 already refuses at the exchange level and
+    /// silently readdress the message, which keri-protocol already refuses at the exchange level and
     /// which is refused here before the nested block is even assembled.
     ReservedPayloadLabel {
         /// The reserved label.

@@ -27,13 +27,13 @@ reading at all — it takes the credential's own attribute timestamp.
 
 ## What the evidence is
 
-Roadmap 6.2 ports what `Credentials.issue` and `Credentials.revoke` construct before anything is
+Issuance ports what `Credentials.issue` and `Credentials.revoke` construct before anything is
 sent: the `iss` transaction event, the `rev` transaction event, the interaction event anchoring
 either in the issuer's key event log, and the two CESR attachments of `src/keri/core/utils.ts`. The
-keeper signatures' place in a request body, the path, and the `POST`/`DELETE` are Roadmap 6.11;
-embedding the result in an IPEX grant is Roadmap 6.3.
+keeper signatures' place in a request body, the path, and the `POST`/`DELETE` are the Signify
+client's; embedding the result in an IPEX grant is `ipex`'s.
 
-As in Roadmap 6.1, the ported unit is a set of expressions rather than an exported function, so the
+As with the credential fixture, the ported unit is a set of expressions rather than an exported function, so the
 fixture carries two independent kinds of evidence:
 
 1. **`declarations`** holds the `iss` construction, the `_rev` literal, both `interact(...)` calls,
@@ -78,7 +78,7 @@ against this generator:
   reference cannot build a revocation without fetching the credential first. Here it is an input,
   so revocation artifacts are constructible offline.
 - **The revocation timestamp defaults to a clock reading**, with three zero digits standing in for
-  microseconds it never had — the same fake precision Roadmap 5.5 recorded on `Signify-Timestamp`.
+  microseconds it never had — the same fake precision keri-http-auth records on `Signify-Timestamp`.
   A protocol crate reads no clock.
 - **The issuance timestamp is the credential's own** — `dt: subject.dt` rather than a second clock
   reading. That is reproduced and made structural: `IssuanceEvent::for_credential` takes no
@@ -90,18 +90,18 @@ against this generator:
   `CesrNumber` from `sad['s']`, and the pinned `utils.test.ts` vector has no such field. A sequence
   number is a `u128` on a typed event here and is never read back out of an untyped map.
 - **The `rd` registry spelling is accepted**, and the reference throws when neither `ri` nor `rd` is
-  present. Roadmap 6.1 always writes `ri`, and `PORTING.md` §5.12 already records CESR 2 as out of
-  scope, so the `rd` branch is unreachable from a credential this port built.
+  present. The credential builder always writes `ri`, and CESR 2 is out of scope, so the `rd`
+  branch is unreachable from a credential this port built.
 - **An establishment-only issuer throws.** Both `issue` and `revoke` raise
   `Establishment only not implemented` — two occurrences across all 117 pinned `.ts` files — because
   anchoring in such a log needs a rotation event neither builds. Here it is a typed refusal naming
   the trait, checked before anything is built.
 - **`bis` and `brv` have no builder.** The backed spellings of issuance and revocation are declared
   in the ilk table and constructed nowhere — both scans return zero across all 117 files — so they
-  are recorded `N/A` on the same evidence as Roadmap 3.6's receipt and query messages.
+  are recorded `N/A` on the same evidence as keri-protocol's receipt and query messages.
 
 Both serializer inputs in `pinned_serializers` are also events this port would refuse *as messages*:
-each writes its version string after another field, which Roadmap 3.2's `SerializedEvent` rejects
+each writes its version string after another field, which keri-protocol's `SerializedEvent` rejects
 and the reference's `Serder` does not. They are read as ordered data instead, which is all the
 serializers use.
 

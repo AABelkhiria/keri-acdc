@@ -14,7 +14,7 @@
     "issuer": "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1",
     "registry": "EGK216v1yguLfex4YRFnG7k1sXRjh3OKY7QqzdKsx7df",
     "timestamp": "2023-08-23T15:16:07.553000+00:00",
-    "note": "every value is deterministic: none of these builders derives a key, and the credential, issuer, registry, and timestamp are the pinned `test-utils.ts` mock credential's own, which Roadmap 6.1 reproduces byte for byte"
+    "note": "every value is deterministic: none of these builders derives a key, and the credential, issuer, registry, and timestamp are the pinned `test-utils.ts` mock credential's own, which the credential builder reproduces byte for byte"
   },
   "declarations": {
     "issuance_saidify_expression": "Saider.saidify({ v: versify(Protocols.KERI, undefined, Serials.JSON, 0), t: Ilks.iss, d: '', i: acdc.d, s: '0', ri: args.ri, dt: subject.dt, })",
@@ -217,12 +217,12 @@
     },
     "revocation_reads_the_registry_from_ri_or_rd": {
       "fallback_expression": "if ('ri' in cred.sad && cred.sad.ri !== undefined) { registryId = cred.sad.ri; } else if ('rd' in cred.sad && cred.sad.rd !== undefined) { registryId = cred.sad.rd; } else { throw new Error('Neither ri nor rd property found in credential'); }",
-      "note": "revocation accepts the KERI 2 spelling `rd` as well as `ri`, and throws when neither is present — but Roadmap 6.1's builder always writes `ri`, so the `rd` branch is unreachable from a credential this port built.",
-      "rust_decision": "the registry is a typed required input; `rd` is unrepresentable here, as `PORTING.md` §5.12 already records CESR 2 to be out of scope."
+      "note": "revocation accepts the KERI 2 spelling `rd` as well as `ri`, and throws when neither is present — but the credential builder always writes `ri`, so the `rd` branch is unreachable from a credential this port built.",
+      "rust_decision": "the registry is a typed required input; `rd` is unrepresentable here, as CESR 2 is out of scope."
     },
     "revocation_timestamp_defaults_to_the_clock": {
       "expression": "new Date().toISOString().replace('Z', '000+00:00')",
-      "note": "the revocation timestamp defaults to a clock reading with three zero digits standing in for microseconds it never had, exactly as Roadmap 6.1's attribute timestamp does.",
+      "note": "the revocation timestamp defaults to a clock reading with three zero digits standing in for microseconds it never had, exactly as the credential's attribute timestamp does.",
       "rust_decision": "required: a protocol crate reads no clock, so the timestamp is a validated `Timestamp` the caller supplies."
     },
     "issuance_reuses_the_credential_timestamp": {
@@ -272,7 +272,7 @@
         "scanned_files": 117
       },
       "note": "the ilk table declares `bis` and `brv` — the backed spellings of issuance and revocation, used when a registry has backers — but nothing in the pinned tree constructs either.",
-      "rust_decision": "`N/A`, on the same evidence as Roadmap 3.6's receipt and query messages; the ilks exist in `signify-keri::event::kind` and no builder is invented here."
+      "rust_decision": "`N/A`, on the same evidence as keri-protocol's receipt and query messages; the ilks exist in `keri-protocol::event::kind` and no builder is invented here."
     },
     "revocation_prior_comes_from_the_server": {
       "expression": "p: cred.status.d",

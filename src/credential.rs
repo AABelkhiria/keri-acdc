@@ -8,9 +8,10 @@
 //! deriving those two digests *is* issuing it.
 //!
 //! This module ports the two `Saider.saidify(...)` expressions inside `Credentials.issue` in the
-//! pinned `src/keri/app/credentialing.ts`. The TEL issuance event those expressions feed, the
-//! interaction event anchoring it, and the request that submits all three are Roadmap 6.2 and
-//! 6.11; nothing here is aware of a registry's event log or of KERIA.
+//! pinned `src/keri/app/credentialing.ts`. The TEL issuance event those expressions feed and the
+//! interaction event anchoring it are [`issuance`](crate::issuance)'s, and the request that
+//! submits all three is the Signify client's; nothing here is aware of a registry's event log or
+//! of KERIA.
 //!
 //! # Field order is the credential's identity
 //!

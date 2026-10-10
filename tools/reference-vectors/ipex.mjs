@@ -1,11 +1,11 @@
 // Records the pinned signify-ts's five IPEX messages, driven through its own `Ipex` class.
 //
-// Roadmap 6.3 ports the pure half of `Ipex.apply`, `.offer`, `.agree`, `.grant`, and `.admit`:
-// each builds a routed exchange message with a payload, an optional prior, and — for offer and
-// grant — embedded messages with their CESR attachments, then signs it with the sender's keeper.
-// The five `submit*` methods that POST the result are Roadmap 6.12.
+// The `ipex` module ports the pure half of `Ipex.apply`, `.offer`, `.agree`, `.grant`, and
+// `.admit`: each builds a routed exchange message with a payload, an optional prior, and — for
+// offer and grant — embedded messages with their CESR attachments, then signs it with the sender's
+// keeper. The five `submit*` methods that POST the result are the Signify client's.
 //
-// Unlike Roadmap 6.1's and 6.2's fixtures, this one does **not** re-express the ported code: it
+// Unlike the credential and issuance fixtures, this one does **not** re-express the ported code: it
 // drives the reference's own `Ipex` methods end to end. `globalThis.fetch` is replaced so the
 // client's `identifiers().get(...)` returns a habitat state this generator derives with the
 // reference's own `Controller`, `IdentifierManagerFactory`, and `incept` — exactly as the pinned
@@ -14,7 +14,7 @@
 //
 // Everything is deterministic: every message's timestamp is supplied, and the sender's keys derive
 // from the passcode the pinned tests publish. The keeper runs at the reference's **production**
-// Argon2 cost, as Roadmap 4.4 through 4.6 did, so the signatures are the real ones.
+// Argon2 cost, as signify-rs's keeper fixtures do, so the signatures are the real ones.
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { SignifyClient } from "./node_modules/signify-ts/dist/keri/app/clienting.js";
@@ -150,7 +150,7 @@ const declarations = {
     embeds:
       "only offer and grant embed anything: offer embeds the credential with no attachment, grant embeds the credential, its issuance event, and the anchoring key event, each with the attachment that authenticates the next",
     signing:
-      "`createExchangeMessage` is `exchange(...)` — Roadmap 3.8 — followed by one keeper signature over the serialized message; the attachment stream it returns is the transposed embed material, not the signature",
+      "`createExchangeMessage` is `exchange(...)` — keri-protocol's exchange builder — followed by one keeper signature over the serialized message; the attachment stream it returns is the transposed embed material, not the signature",
   },
 };
 
@@ -324,7 +324,7 @@ if (client.manager === null) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. The artifacts the IPEX messages carry, built the way Roadmap 6.2 builds them.
+// 3. The artifacts the IPEX messages carry, built the way issuance builds them.
 // ---------------------------------------------------------------------------
 
 const MOCK_CREDENTIAL_SAD = {
@@ -635,7 +635,7 @@ const quirks = {
     embed_expression: shapes.offer.embeds_argument,
     attachment: messages.offer.attachment,
     note: "an offer embeds `[args.acdc, undefined]`, and the transposed stream for an embed with no attachment is the empty string — the label is written into the exchange's `e` block but nothing follows it in the attachment stream",
-    rust_decision: "reproduced: Roadmap 3.8's `ExchangeEmbed::new` without `with_attachment` is exactly this case, and it is distinct from an explicitly empty attachment, which still writes its path.",
+    rust_decision: "reproduced: keri-protocol's `ExchangeEmbed::new` without `with_attachment` is exactly this case, and it is distinct from an explicitly empty attachment, which still writes its path.",
   },
   grant_signs_the_anchor_when_no_attachment_is_given: {
     expression: firstText(
@@ -644,21 +644,21 @@ const quirks = {
     ),
     note: "a grant with no `ancAttachment` signs the anchoring key event with the sender's keeper and takes the attachment off the resulting message — which means the *sender* signs an event belonging to the credential's issuer, whoever that is",
     rust_decision:
-      "the anchor attachment is a required input. Roadmap 6.2 produces the issuer's own signed anchor, and a discloser who is not the issuer cannot produce a valid one; making it required means the caller must supply what it actually has.",
+      "the anchor attachment is a required input. Issuance produces the issuer's own signed anchor, and a discloser who is not the issuer cannot produce a valid one; making it required means the caller must supply what it actually has.",
   },
   routes_are_string_literals: {
     scan: scan("/ipex/"),
     note: "the five routes appear as bare string literals at their call sites; the pinned `app/exchanging.ts` declares a route table for multisig but none for IPEX",
-    rust_decision: "a typed `IpexRoute` enum, whose `as_str` is asserted against the literals read from the reference's own syntax tree. The general exchange route table is Roadmap 8.1.",
+    rust_decision: "a typed `IpexRoute` enum, whose `as_str` is asserted against the literals read from the reference's own syntax tree. The general exchange route table is the Signify client's.",
   },
   sender_and_recipient_are_unvalidated: {
     note: "`senderName` is an alias looked up remotely and `recipient` is free text interpolated into the message; neither is checked, so a typo becomes part of the exchange's identifier",
-    rust_decision: "the recipient is an `IdentifierPrefix` and the sender is the habitat's own prefix, as Roadmap 3.8 already types them.",
+    rust_decision: "the recipient is an `IdentifierPrefix` and the sender is the habitat's own prefix, as keri-protocol already types them.",
   },
   attributes_are_an_untyped_record: {
     payload_expression: shapes.apply.payload,
     note: "an apply's `attributes` is `Record<string, unknown>`, spread into the payload with no bound and no label check",
-    rust_decision: "an ordered `Sad`, bounded and label-checked exactly as Roadmap 6.1 bounds a credential's attribute block, because it is committed into the exchange's identifier the same way.",
+    rust_decision: "an ordered `Sad`, bounded and label-checked exactly as the credential builder bounds an attribute block, because it is committed into the exchange's identifier the same way.",
   },
 };
 
@@ -689,7 +689,7 @@ const fixture = {
     acdc_raw: acdc.raw,
     iss_raw: iss.raw,
     anc_raw: anc.raw,
-    note: "the credential, its issuance event, and the anchoring key event a grant embeds; the first two are Roadmap 6.1's and 6.2's own output and the third is the pinned test's, which deliberately seals `[{}]`",
+    note: "the credential, its issuance event, and the anchoring key event a grant embeds; the first two are the credential builder's and issuance's own output and the third is the pinned test's, which deliberately seals `[{}]`",
   },
   messages,
   pinned_confirmations: pinnedConfirmations,

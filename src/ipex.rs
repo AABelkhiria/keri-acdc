@@ -21,10 +21,10 @@
 //!
 //! This module ports the pure half of `Ipex.apply`, `.offer`, `.agree`, `.grant`, and `.admit` in
 //! the pinned `src/keri/app/credentialing.ts`, together with the `createExchangeMessage`
-//! composition of `src/keri/app/exchanging.ts` that each calls. The message itself is Roadmap
-//! 3.8's [`ExchangeBuilder`]; what is added here is the route, the payload each route carries, and
-//! the embeds. Signing is the sender's: [`SignedIpexMessage`] pairs a message with the signatures
-//! produced over it. Submitting the result is Roadmap 6.12.
+//! composition of `src/keri/app/exchanging.ts` that each calls. The message itself is
+//! keri-protocol's [`ExchangeBuilder`]; what is added here is the route, the payload each route
+//! carries, and the embeds. Signing is the sender's: [`SignedIpexMessage`] pairs a message with
+//! the signatures produced over it. Submitting the result is the Signify client's.
 //!
 //! # The message is required on every route
 //!
@@ -370,7 +370,7 @@ impl Disclosure {
         }
     }
 
-    /// Assembles a disclosure from Roadmap 6.2's issuance artifacts.
+    /// Assembles a disclosure from the issuance artifacts built here.
     ///
     /// All three attachments are derived: the credential's from the issuance event, the issuance's
     /// from the anchor, and the anchor's from the signatures the issuer produced over it. The

@@ -1,15 +1,15 @@
 // Records the pinned signify-ts's ACDC credential construction.
 //
-// Roadmap 6.1 ports the two `Saider.saidify(...)` expressions inside `Credentials.issue` — the
-// attribute block and the credential itself. Everything around them (the TEL issuance event, the
-// anchoring interaction, the keeper signatures, the POST) is Roadmap 6.2 and 6.11 and is
-// deliberately not driven here.
+// The credential builder ports the two `Saider.saidify(...)` expressions inside `Credentials.issue`
+// — the attribute block and the credential itself. Everything around them (the TEL issuance event,
+// the anchoring interaction, the keeper signatures, the POST) belongs to issuance and to the
+// Signify client and is deliberately not driven here.
 //
 // The evidence is therefore in two independent halves:
 //
 //   1. The **expressions themselves**, read from the reference's own syntax tree by its own pinned
 //      TypeScript, so the generator is provably re-expressing production code rather than a
-//      paraphrase of it. This is the technique Roadmap 5.4 used for the retry formula.
+//      paraphrase of it. This is the technique signify-rs's retry fixture uses for its formula.
 //   2. The **outputs**, produced by the reference's own compiled `Saider` and `versify`, and
 //      independently anchored: the credential the reference's own `test/app/test-utils.ts` checks
 //      in as `mockCredential.sad` is rebuilt here from its inputs and reproduces both of its
@@ -158,7 +158,7 @@ const declarations = {
   credential_saidify_note:
     "the second builds the credential itself in the fixed field order v, d, u, i, ri, s, a, e, r; `JSON.stringify` drops every `undefined`, so an absent optional field is simply absent",
   issuance_saidify_note:
-    "the third builds the TEL issuance event and is Roadmap 6.2's, recorded here only to prove this generator read the whole method and left it alone",
+    "the third builds the TEL issuance event and is issuance's, recorded here only to prove this generator read the whole method and left it alone",
   acdc_version_string: versify(Protocols.ACDC, undefined, Serials.JSON, 0),
   digest_code: MtrDex.Blake3_256,
 };
@@ -177,7 +177,7 @@ const ISSUER = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
  * Runs the two ported expressions over one `CredentialData`.
  *
  * This is `Credentials.issue` with the hab lookup, the TEL event, the anchor, the signatures, and
- * the request removed — none of which is Roadmap 6.1's — and with the `dt` default supplied rather
+ * the request removed — none of which is the credential builder's — and with the `dt` default supplied rather
  * than read from the clock.
  */
 function build(args, prefix = ISSUER, fallbackTimestamp = DT) {
@@ -551,9 +551,9 @@ const quirks = {
     expression: "args.a.dt ?? new Date().toISOString().replace('Z', '000+00:00')",
     shape: DT.replace(/\d/g, "9"),
     length: DT.length,
-    note: "the attribute timestamp defaults to the system clock, rendered with three zero digits standing in for microseconds the reading never had — the same fake precision Roadmap 5.5 recorded on `Signify-Timestamp`.",
+    note: "the attribute timestamp defaults to the system clock, rendered with three zero digits standing in for microseconds the reading never had — the same fake precision keri-http-auth records on `Signify-Timestamp`.",
     rust_decision:
-      "required: a protocol crate reads no clock, so the timestamp is a validated `Timestamp` the caller supplies, exactly as Roadmap 3.6's reply and Roadmap 4.7's nonce are.",
+      "required: a protocol crate reads no clock, so the timestamp is a validated `Timestamp` the caller supplies, exactly as keri-protocol's reply timestamp and registry nonce are.",
   },
   credential_types_have_no_consumer: {
     members: declarations.credential_types,
@@ -566,7 +566,7 @@ const quirks = {
     scan: scan("CredentialFilter"),
     note: "`CredentialFilter` is consumed by `Credentials.list` alone, where it becomes the JSON body of `POST /credentials/query`; it is request shaping, not credential data.",
     rust_decision:
-      "deferred to Roadmap 6.11 with the endpoint that sends it, because `ARCHITECTURE.md` §4.5 keeps KERIA request bodies out of `signify-acdc`.",
+      "deferred to the Signify client with the endpoint that sends it, because KERIA request bodies belong to the client, not to this crate.",
   },
 };
 

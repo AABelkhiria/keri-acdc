@@ -1,6 +1,6 @@
 //! Exact IPEX vectors recorded from the pinned TypeScript reference's own `Ipex` methods.
 //!
-//! Unlike Roadmap 6.1's and 6.2's fixtures, this one does not re-express the ported code: the
+//! Unlike the credential and issuance fixtures, this one does not re-express the ported code: the
 //! generator replaces `globalThis.fetch`, derives the sender's habitat by the same route the
 //! pinned `test/app/test-utils.ts` derives its mock, and drives `Ipex.apply`, `.offer`, `.agree`,
 //! `.grant`, and `.admit` end to end at the reference's production Argon2 cost. So the recorded
