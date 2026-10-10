@@ -3,10 +3,10 @@
 //! Fuzzes credential issuance and revocation artifacts over hostile key state and inputs.
 //!
 //! The untrusted input here is different from Roadmap 6.1's. A transaction event's own fields are
-//! typed and short, but the **key state** the anchor is built over is whatever a KERIA agent
-//! returned: its identifier, its position, its digest, and its configuration are all remote text.
-//! An issuer that anchors over a state it should have refused signs a key event committing to a
-//! log position it does not occupy.
+//! typed and short, but the **key state** the anchor is built over is whatever an agent reported:
+//! its position, its digest, and its configuration are all remote values. An issuer that anchors
+//! over a state it should have refused signs a key event committing to a log position it does not
+//! occupy.
 //!
 //! The target asserts that nothing panics, that every rejection is a typed [`TransactionError`]
 //! with a non-empty description, and that anything accepted holds four properties: the transaction
@@ -15,17 +15,16 @@
 //! both entry points; and the credential attachment is a well-formed quadlet-aligned triple naming
 //! the event it authenticates.
 
-use keria_types::api::KeyState;
+use keri_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
+use keri_acdc::error::TransactionError;
+use keri_acdc::issuance::{ISSUANCE_SEQUENCE_NUMBER, IssuanceEvent};
+use keri_acdc::revocation::RevocationEventBuilder;
+use keri_acdc::transaction::{AnchorState, TransactionSeal, anchor_event, is_establishment_only};
+use keri_protocol::event::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
+use keri_protocol::serialization::{SadValue, SerializedEvent};
 use libfuzzer_sys::fuzz_target;
-use signify_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
-use signify_acdc::error::TransactionError;
-use signify_acdc::issuance::{ISSUANCE_SEQUENCE_NUMBER, IssuanceEvent};
-use signify_acdc::revocation::RevocationEventBuilder;
-use signify_acdc::transaction::{TransactionSeal, anchor_event, is_establishment_only};
-use signify_keri::event::Timestamp;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
-use signify_keri::serialization::{SadValue, SerializedEvent};
 
 const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
 const HOLDER: &str = "EKvn1M6shPLnXTb47bugVJblKMuWC0TcLIePP8p98Bby";
@@ -36,26 +35,9 @@ const STAMP: &str = "2023-08-23T15:16:07.553000+00:00";
 
 /// Builds a key state from the fuzzer's bytes: its position, its digest, and its configuration all
 /// come from the input, which is exactly what a remote agent controls.
-fn key_state(position: &str, digest: &str, configuration: &[String]) -> Option<KeyState> {
-    serde_json::from_value(serde_json::json!({
-        "i": ISSUER,
-        "s": position,
-        "p": "",
-        "d": digest,
-        "f": "0",
-        "dt": STAMP,
-        "et": "icp",
-        "kt": "1",
-        "k": ["DAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2QtV8BB0C"],
-        "nt": "1",
-        "n": [DIGEST],
-        "bt": "0",
-        "b": [],
-        "c": configuration,
-        "ee": {"s": "0", "d": DIGEST, "br": [], "ba": []},
-        "di": "",
-    }))
-    .ok()
+fn key_state(position: u128, digest: Said, configuration: &[String]) -> Option<AnchorState> {
+    let issuer = IdentifierPrefix::from_qb64(ISSUER).ok()?;
+    Some(AnchorState::new(issuer, position, digest).with_configuration(configuration))
 }
 
 fuzz_target!(|data: &[u8]| {
@@ -76,7 +58,11 @@ fuzz_target!(|data: &[u8]| {
     // The input splits into the state's position, its digest, its configuration, and one
     // credential attribute.
     let mut parts = sections.split(|&byte| byte == 0xff);
-    let position = String::from_utf8_lossy(parts.next().unwrap_or_default()).into_owned();
+    let mut position_bytes = [0_u8; 16];
+    for (slot, byte) in position_bytes.iter_mut().zip(parts.next().unwrap_or_default()) {
+        *slot = *byte;
+    }
+    let position = u128::from_le_bytes(position_bytes);
     let state_digest = String::from_utf8_lossy(parts.next().unwrap_or_default()).into_owned();
     let configuration: Vec<String> = parts
         .next()
@@ -158,12 +144,17 @@ fuzz_target!(|data: &[u8]| {
         Some(format!("{:x}", seal.sequence_number()).as_str())
     );
 
-    // The key state, which is the part a remote agent controls.
-    let Some(state) = key_state(&position, &state_digest, &configuration) else {
+    // The key state, which is the part a remote agent controls. Its digest is parsed by
+    // keri-protocol before it gets here, so an unparsable one is not this crate's refusal.
+    let Ok(state_digest) = Said::from_qb64(&state_digest) else {
+        return;
+    };
+    let Some(state) = key_state(position, state_digest, &configuration) else {
         return;
     };
     let establishment_only = configuration.iter().any(|entry| entry == "EO");
-    assert_eq!(is_establishment_only(&state), establishment_only);
+    assert_eq!(is_establishment_only(&configuration), establishment_only);
+    assert_eq!(state.is_establishment_only(), establishment_only);
 
     match anchor_event(&state, &seal) {
         Ok(event) => {
@@ -171,9 +162,9 @@ fuzz_target!(|data: &[u8]| {
             assert!(!establishment_only, "an establishment-only issuer was accepted");
 
             // The anchor lands exactly one position past the state it was built over.
-            let current = u128::from_str_radix(&position, 16).expect("an accepted state parses its position");
-            assert_eq!(event.sequence_number(), current + 1);
-            assert_eq!(event.sad().get_text("p"), Some(state_digest.as_str()));
+            assert_eq!(event.sequence_number(), position + 1);
+            let prior = state_digest.qb64().expect("a parsed digest encodes");
+            assert_eq!(event.sad().get_text("p"), Some(prior.as_str()));
             assert_eq!(event.sad().get_text("i"), Some(ISSUER));
 
             // And it seals exactly one event, the one asked for.
@@ -200,20 +191,20 @@ fuzz_target!(|data: &[u8]| {
             assert!(
                 matches!(
                     error,
-                    TransactionError::EstablishmentOnlyIssuer { .. }
-                        | TransactionError::SequenceNumberOverflow { .. }
-                        | TransactionError::Prefix { .. }
-                        | TransactionError::Said { .. }
+                    TransactionError::EstablishmentOnlyIssuer { .. } | TransactionError::SequenceNumberOverflow { .. }
                 ),
                 "an unexpected refusal shape: {error}"
             );
+            if matches!(error, TransactionError::SequenceNumberOverflow { .. }) {
+                assert_eq!(position, u128::MAX);
+            }
         }
     }
 
     // The establishment-only refusal is unconditional: adding the trait to any accepted state
     // makes it fail, whatever else that state says.
-    if !establishment_only && let Some(mut refused) = key_state(&position, &state_digest, &configuration) {
-        refused.configuration.push("EO".to_owned());
+    if !establishment_only && let Some(accepted) = key_state(position, state_digest, &configuration) {
+        let refused = accepted.establishment_only(true);
         assert!(matches!(
             anchor_event(&refused, &seal),
             Err(TransactionError::EstablishmentOnlyIssuer { trait_code: "EO" })

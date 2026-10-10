@@ -15,15 +15,15 @@
 //! container's field order fixed, and both identifiers verifying against the data that carries
 //! them, byte for byte after a reparse.
 
-use libfuzzer_sys::fuzz_target;
-use signify_acdc::credential::{
+use keri_acdc::credential::{
     ATTRIBUTES_LABEL, CredentialAttributes, CredentialBuilder, EDGES_LABEL, MAX_BLOCK_DEPTH, MAX_BLOCK_FIELDS,
     MAX_LABEL_BYTES, MAX_NONCE_BYTES, NONCE_LABEL, RULES_LABEL, RegistryIdentifier, SCHEMA_LABEL,
 };
-use signify_keri::event::timestamp::Timestamp;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
-use signify_keri::serialization::{Sad, SadValue, SerializedEvent};
+use keri_protocol::event::timestamp::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
+use keri_protocol::serialization::{Sad, SadValue, SerializedEvent};
+use libfuzzer_sys::fuzz_target;
 
 const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
 const HOLDER: &str = "EKvn1M6shPLnXTb47bugVJblKMuWC0TcLIePP8p98Bby";

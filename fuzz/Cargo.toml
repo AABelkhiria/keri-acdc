@@ -1,0 +1,28 @@
+[package]
+name = "keri-acdc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+keri-acdc = { path = ".." }
+keri-cesr = { version = "0.1.0", features = ["crypto"] }
+keri-protocol = "0.1.0"
+libfuzzer-sys = "0.4.13"
+
+[[bin]]
+name = "credential"
+path = "fuzz_targets/credential.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "issuance"
+path = "fuzz_targets/issuance.rs"
+test = false
+doc = false
+bench = false
