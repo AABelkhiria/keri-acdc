@@ -1,4 +1,4 @@
-# cargo-deny policy for the signify-rs workspace.
+# cargo-deny policy for keri-acdc.
 
 [graph]
 all-features = true
@@ -8,8 +8,6 @@ private = { ignore = true }
 allow = [
     "MIT",
     "Apache-2.0",
-    "ISC",
-    "BSD-2-Clause",
     "BSD-3-Clause",
     "Unicode-3.0",
 ]
