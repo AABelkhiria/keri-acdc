@@ -1,4 +1,4 @@
-// Records the pinned signify-ts checkout's ACDC credential construction.
+// Records the pinned signify-ts's ACDC credential construction.
 //
 // Roadmap 6.1 ports the two `Saider.saidify(...)` expressions inside `Credentials.issue` — the
 // attribute block and the credential itself. Everything around them (the TEL issuance event, the
@@ -18,17 +18,19 @@
 //
 // Everything here is deterministic: `saidify` reads no clock and derives no keys. The one clock
 // reading in the ported code is the `dt` default, which is recorded by expression and shape only.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
-import { Saider } from "../../reference/signify-ts/dist/keri/core/saider.js";
-import { versify, Protocols, Serials } from "../../reference/signify-ts/dist/keri/core/core.js";
-import { MtrDex } from "../../reference/signify-ts/dist/keri/core/matter.js";
-import ts from "../../reference/signify-ts/node_modules/typescript/lib/typescript.js";
-import libsodium from "../../reference/signify-ts/node_modules/libsodium-wrappers-sumo/dist/modules-sumo-esm/libsodium-wrappers.mjs";
+import { Saider } from "./node_modules/signify-ts/dist/keri/core/saider.js";
+import { versify, Protocols, Serials } from "./node_modules/signify-ts/dist/keri/core/core.js";
+import { MtrDex } from "./node_modules/signify-ts/dist/keri/core/matter.js";
+import ts from "./node_modules/typescript/lib/typescript.js";
+import libsodium from "./node_modules/libsodium-wrappers-sumo/dist/modules-sumo-esm/libsodium-wrappers.mjs";
+
+import { referenceSha } from "./reference.mjs";
+import { sourceFiles, sourceText } from "./source.mjs";
 
 await libsodium.ready;
 
-const referenceSha = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
 
 // ---------------------------------------------------------------------------
 // 1. The ported expressions, read from the reference's own syntax tree.
@@ -36,8 +38,7 @@ const referenceSha = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
 
 /** Parses one pinned TypeScript file with the reference's own compiler. */
 function parse(relativePath) {
-  const url = new URL(`../../reference/signify-ts/${relativePath}`, import.meta.url);
-  const text = readFileSync(url, "utf8");
+  const text = sourceText(relativePath);
   return { text, source: ts.createSourceFile(relativePath, text, ts.ScriptTarget.ES2022, true) };
 }
 
@@ -124,31 +125,7 @@ if (issueSaidifyCalls.length !== 3) {
 
 /** Every `.ts` file in the pinned source and test trees, so an absence can be scanned rather than asserted. */
 function pinnedTypeScriptFiles() {
-  const roots = ["src", "test", "test-integration", "examples"];
-  const files = [];
-  const walk = (relative) => {
-    const url = new URL(`../../reference/signify-ts/${relative}`, import.meta.url);
-    let entries;
-    try {
-      entries = readdirSync(url, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const child = `${relative}/${entry.name}`;
-      if (entry.isDirectory()) {
-        if (entry.name !== "node_modules") {
-          walk(child);
-        }
-      } else if (entry.name.endsWith(".ts")) {
-        files.push(child);
-      }
-    }
-  };
-  for (const root of roots) {
-    walk(root);
-  }
-  return files.sort();
+  return sourceFiles(["src", "test", "test-integration", "examples"]);
 }
 
 /** Counts one needle across the pinned tree, recording every file that holds it. */
@@ -156,7 +133,7 @@ function scan(needle) {
   const hits = [];
   let total = 0;
   for (const file of PINNED_FILES) {
-    const text = readFileSync(new URL(`../../reference/signify-ts/${file}`, import.meta.url), "utf8");
+    const text = sourceText(file);
     const count = text.split(needle).length - 1;
     if (count > 0) {
       hits.push({ file, count });

@@ -9,10 +9,10 @@
 - Binary fields: none. Identifiers and signatures are qualified Base64; messages are exact
   serialized text and attachment streams are exact CESR text.
 
-Generate and verify from the repository root after building the pinned checkout:
+Generate and verify from the repository root:
 
 ```bash
-npm --prefix reference/signify-ts run build
+npm ci --prefix tools/reference-vectors
 node tools/reference-vectors/ipex.mjs --write   # regenerate
 node tools/reference-vectors/ipex.mjs --check   # verify determinism
 ```

@@ -9,10 +9,10 @@
 - Binary fields: none. Identifiers are qualified Base64; events are exact serialized text and
   attachments are exact CESR text.
 
-Generate and verify from the repository root after building the pinned checkout:
+Generate and verify from the repository root:
 
 ```bash
-npm --prefix reference/signify-ts run build
+npm ci --prefix tools/reference-vectors
 node tools/reference-vectors/issuance.mjs --write   # regenerate
 node tools/reference-vectors/issuance.mjs --check   # verify determinism
 ```

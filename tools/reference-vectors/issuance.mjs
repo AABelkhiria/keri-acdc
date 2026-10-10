@@ -1,4 +1,4 @@
-// Records the pinned signify-ts checkout's credential issuance and revocation artifacts.
+// Records the pinned signify-ts's credential issuance and revocation artifacts.
 //
 // Roadmap 6.1 ported the two `Saider.saidify(...)` expressions that build a credential. What is
 // left of the *pure* half of `Credentials.issue` and `Credentials.revoke` is the rest of what they
@@ -20,30 +20,31 @@
 //
 // Everything is deterministic: none of these builders derives a key, and the one clock reading —
 // the revocation timestamp — is supplied instead, with its default expression recorded by text.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
-import { Saider } from "../../reference/signify-ts/dist/keri/core/saider.js";
-import { Serder } from "../../reference/signify-ts/dist/keri/core/serder.js";
-import { interact } from "../../reference/signify-ts/dist/keri/core/eventing.js";
+import { Saider } from "./node_modules/signify-ts/dist/keri/core/saider.js";
+import { Serder } from "./node_modules/signify-ts/dist/keri/core/serder.js";
+import { interact } from "./node_modules/signify-ts/dist/keri/core/eventing.js";
 import {
   serializeACDCAttachment,
   serializeIssExnAttachment,
-} from "../../reference/signify-ts/dist/keri/core/utils.js";
-import { versify, Protocols, Serials, Ilks, d } from "../../reference/signify-ts/dist/keri/core/core.js";
-import ts from "../../reference/signify-ts/node_modules/typescript/lib/typescript.js";
-import libsodium from "../../reference/signify-ts/node_modules/libsodium-wrappers-sumo/dist/modules-sumo-esm/libsodium-wrappers.mjs";
+} from "./node_modules/signify-ts/dist/keri/core/utils.js";
+import { versify, Protocols, Serials, Ilks, d } from "./node_modules/signify-ts/dist/keri/core/core.js";
+import ts from "./node_modules/typescript/lib/typescript.js";
+import libsodium from "./node_modules/libsodium-wrappers-sumo/dist/modules-sumo-esm/libsodium-wrappers.mjs";
+
+import { referenceSha } from "./reference.mjs";
+import { sourceFiles, sourceText } from "./source.mjs";
 
 await libsodium.ready;
 
-const referenceSha = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
 
 // ---------------------------------------------------------------------------
 // 1. The ported expressions, read from the reference's own syntax tree.
 // ---------------------------------------------------------------------------
 
 function parse(relativePath) {
-  const url = new URL(`../../reference/signify-ts/${relativePath}`, import.meta.url);
-  const text = readFileSync(url, "utf8");
+  const text = sourceText(relativePath);
   return { text, source: ts.createSourceFile(relativePath, text, ts.ScriptTarget.ES2022, true) };
 }
 
@@ -82,30 +83,7 @@ function firstText(node, predicate) {
 
 /** Every `.ts` file in the pinned source and test trees, so an absence can be scanned. */
 function pinnedTypeScriptFiles() {
-  const files = [];
-  const walk = (relative) => {
-    const url = new URL(`../../reference/signify-ts/${relative}`, import.meta.url);
-    let entries;
-    try {
-      entries = readdirSync(url, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const child = `${relative}/${entry.name}`;
-      if (entry.isDirectory()) {
-        if (entry.name !== "node_modules") {
-          walk(child);
-        }
-      } else if (entry.name.endsWith(".ts")) {
-        files.push(child);
-      }
-    }
-  };
-  for (const root of ["src", "test", "test-integration", "examples"]) {
-    walk(root);
-  }
-  return files.sort();
+  return sourceFiles(["src", "test", "test-integration", "examples"]);
 }
 
 const PINNED_FILES = pinnedTypeScriptFiles();
@@ -114,7 +92,7 @@ function scan(needle) {
   const hits = [];
   let total = 0;
   for (const file of PINNED_FILES) {
-    const text = readFileSync(new URL(`../../reference/signify-ts/${file}`, import.meta.url), "utf8");
+    const text = sourceText(file);
     const count = text.split(needle).length - 1;
     if (count > 0) {
       hits.push({ file, count });

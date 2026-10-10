@@ -10,10 +10,10 @@
 - Binary fields: none. Identifiers and schema SAIDs are qualified Base64; credentials and attribute
   blocks are exact serialized text.
 
-Generate and verify from the repository root after building the pinned checkout:
+Generate and verify from the repository root:
 
 ```bash
-npm --prefix reference/signify-ts run build
+npm ci --prefix tools/reference-vectors
 node tools/reference-vectors/credential.mjs --write   # regenerate
 node tools/reference-vectors/credential.mjs --check   # verify determinism
 ```
