@@ -1,13 +1,16 @@
 [package]
 name = "keri-acdc"
-version = "0.0.0"
+version = "0.1.0"
 description = "ACDC credentials: the container, issuance and revocation events, and IPEX messages"
 edition = "2024"
 rust-version = "1.97"
 license = "Apache-2.0 OR MIT"
-publish = false
+repository = "https://github.com/AABelkhiria/keri-acdc"
+documentation = "https://docs.rs/keri-acdc"
+readme = "README.md"
 keywords = ["keri", "acdc", "ipex", "credentials", "identity"]
 categories = ["cryptography", "encoding"]
+exclude = [".github/", "tools/", "deny.toml", "rustfmt.toml", "rust-toolchain.toml", ".gitignore"]
 
 [dependencies]
 keri-cesr = { version = "0.1.0", features = ["crypto"] }
