@@ -7,7 +7,7 @@
 //! 1. an `iss` transaction event, at position zero of the credential's own transaction log, naming
 //!    the registry that governs it;
 //! 2. an interaction event in the issuer's key event log sealing that transaction event, signed by
-//!    the issuer's keeper;
+//!    the issuer;
 //! 3. the CESR attachments binding each artifact to the next, which a later IPEX grant carries.
 //!
 //! This module ports the pure half of `Credentials.issue` in the pinned
@@ -25,10 +25,10 @@
 //! # Example
 //!
 //! ```
-//! use signify_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
-//! use signify_acdc::issuance::IssuanceEvent;
-//! use signify_keri::prefix::IdentifierPrefix;
-//! use signify_keri::said::Said;
+//! use keri_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
+//! use keri_acdc::issuance::IssuanceEvent;
+//! use keri_protocol::prefix::IdentifierPrefix;
+//! use keri_protocol::said::Said;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let credential = CredentialBuilder::new(
@@ -51,19 +51,16 @@
 //! # }
 //! ```
 
-use keria_types::api::KeyState;
-use signify_keri::attachment::{AttachmentFraming, SealSourceCouple, SealSourceTriple};
-use signify_keri::event::Timestamp;
-use signify_keri::event::kind::EventKind;
-use signify_keri::identifier::artifact::IdentifierArtifact;
-use signify_keri::manager::keeper::IdentifierKeeper;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::Said;
-use signify_keri::serialization::{Sad, SerializedEvent};
+use keri_protocol::attachment::{AttachmentFraming, SealSourceCouple, SealSourceTriple};
+use keri_protocol::event::Timestamp;
+use keri_protocol::event::kind::EventKind;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::Said;
+use keri_protocol::serialization::{Sad, SerializedEvent};
 
 use crate::credential::{Credential, RegistryIdentifier};
 use crate::error::TransactionError;
-use crate::transaction::{TransactionSeal, anchor, assemble};
+use crate::transaction::{SignedAnchor, TransactionSeal, assemble};
 
 /// Position of an issuance in a credential's transaction event log.
 ///
@@ -209,7 +206,7 @@ pub struct IssuanceArtifacts {
     /// The transaction event recording its issuance.
     pub issuance: IssuanceEvent,
     /// The issuer's interaction event sealing that transaction event, with its signatures.
-    pub anchor: IdentifierArtifact,
+    pub anchor: SignedAnchor,
 }
 
 impl IssuanceArtifacts {
@@ -239,36 +236,12 @@ impl IssuanceArtifacts {
     }
 }
 
-/// Issues `credential`: builds its transaction event and the signed key event anchoring it.
-///
-/// This is the pure half of the reference's `Credentials.issue`, given a credential Roadmap 6.1
-/// already built. The anchor lands at the issuer's next sequence number over the state's digest.
-///
-/// # Errors
-///
-/// Returns [`TransactionError::EstablishmentOnlyIssuer`] when the issuer's configuration carries
-/// `EO`, and the layered failures listed on [`crate::transaction::anchor`] and
-/// [`IssuanceEvent::for_credential`].
-pub fn issue_credential(
-    keeper: &dyn IdentifierKeeper,
-    state: &KeyState,
-    credential: Credential,
-) -> Result<IssuanceArtifacts, TransactionError> {
-    let issuance = IssuanceEvent::for_credential(&credential)?;
-    let anchor = anchor(keeper, state, &issuance.seal())?;
-    Ok(IssuanceArtifacts {
-        credential,
-        issuance,
-        anchor,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::credential::{CredentialAttributes, CredentialBuilder};
     use crate::transaction::{PRIOR_LABEL, UNSIZED_VERSION_STRING};
-    use signify_keri::said::{DEFAULT_SAID_LABEL, SaidVerification};
+    use keri_protocol::said::{DEFAULT_SAID_LABEL, SaidVerification};
     use std::error::Error;
 
     const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";

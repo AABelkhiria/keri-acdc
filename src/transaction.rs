@@ -9,18 +9,21 @@
 //!
 //! This module ports the parts of `Credentials.issue` and `Credentials.revoke` in the pinned
 //! `src/keri/app/credentialing.ts` that both perform. The events themselves are
-//! [`issuance`](crate::issuance) and [`revocation`](crate::revocation).
+//! [`issuance`](crate::issuance) and [`revocation`](crate::revocation). Signing the anchoring key
+//! event is the issuer's: [`anchor_event`] builds it unsigned, and [`SignedAnchor`] carries it with
+//! the signatures the issuer produced over it.
 
-use keria_types::api::KeyState;
-use signify_keri::event::ConfigurationTrait;
-use signify_keri::event::interaction::InteractionBuilder;
-use signify_keri::event::kind::EventKind;
-use signify_keri::event::{KeyEvent, Timestamp};
-use signify_keri::identifier::artifact::{IdentifierArtifact, interact_identifier};
-use signify_keri::manager::keeper::IdentifierKeeper;
-use signify_keri::prefix::{IdentifierPrefix, PrefixError};
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said};
-use signify_keri::serialization::{
+use core::fmt;
+
+use keri_cesr::crypto::signature::IndexedSignature;
+use keri_protocol::attachment::SignedMessageBuilder;
+use keri_protocol::event::ConfigurationTrait;
+use keri_protocol::event::interaction::InteractionBuilder;
+use keri_protocol::event::kind::EventKind;
+use keri_protocol::event::{KeyEvent, Timestamp};
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said};
+use keri_protocol::serialization::{
     IDENTIFIER_LABEL, KIND_LABEL, SAID_LABEL, SEQUENCE_LABEL, Sad, SadValue, SerializedEvent, VERSION_LABEL,
 };
 
@@ -95,73 +98,163 @@ impl TransactionSeal {
     }
 }
 
-/// Builds and signs the interaction event anchoring `seal` in the issuer's key event log.
+/// What anchoring reads from the issuer's key state: whose log it is, where that log stands, and
+/// whether an interaction event may be appended to it at all.
+///
+/// A KERIA agent reports key state as text; a Signify client parses what it needs into this
+/// before anchoring, and a server derives it from the log it validated.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnchorState {
+    identifier: IdentifierPrefix,
+    sequence_number: u128,
+    digest: Said,
+    establishment_only: bool,
+}
+
+impl AnchorState {
+    /// Describes a key event log whose latest event is `digest`, at `sequence_number`.
+    #[must_use]
+    pub const fn new(identifier: IdentifierPrefix, sequence_number: u128, digest: Said) -> Self {
+        Self {
+            identifier,
+            sequence_number,
+            digest,
+            establishment_only: false,
+        }
+    }
+
+    /// Records whether the identifier carries the `EO` configuration trait, which forbids anchoring
+    /// in an interaction event.
+    #[must_use]
+    pub const fn establishment_only(mut self, establishment_only: bool) -> Self {
+        self.establishment_only = establishment_only;
+        self
+    }
+
+    /// Reads the configuration traits a key state reports and records whether `EO` is among them.
+    #[must_use]
+    pub fn with_configuration<I>(self, configuration: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let establishment_only = is_establishment_only(configuration);
+        self.establishment_only(establishment_only)
+    }
+
+    /// Returns the identifier whose log is anchored in.
+    #[must_use]
+    pub const fn identifier(&self) -> &IdentifierPrefix {
+        &self.identifier
+    }
+
+    /// Returns the position of the log's latest event.
+    #[must_use]
+    pub const fn sequence_number(&self) -> u128 {
+        self.sequence_number
+    }
+
+    /// Returns the digest of the log's latest event.
+    #[must_use]
+    pub const fn digest(&self) -> Said {
+        self.digest
+    }
+
+    /// Returns whether this state forbids anchoring in an interaction event.
+    #[must_use]
+    pub const fn is_establishment_only(&self) -> bool {
+        self.establishment_only
+    }
+}
+
+/// The issuer's interaction event anchoring a transaction event, with the signatures over it.
+///
+/// Who signs is the caller's concern: a Signify client signs with its keeper, a multisig member
+/// collects the group's signatures. Either way the event is the one [`anchor_event`] built.
+pub struct SignedAnchor {
+    /// The anchoring interaction event.
+    pub event: KeyEvent,
+    /// The controller signatures over its bytes, indexed by signing-key position.
+    pub signatures: Vec<IndexedSignature>,
+}
+
+impl SignedAnchor {
+    /// Pairs an anchoring event with the signatures over it.
+    #[must_use]
+    pub const fn new(event: KeyEvent, signatures: Vec<IndexedSignature>) -> Self {
+        Self { event, signatures }
+    }
+
+    /// Encodes the CESR attachment carrying the signatures: the controller-signature group a
+    /// disclosure attaches to the anchor.
+    ///
+    /// # Errors
+    ///
+    /// Returns layered [`TransactionError::Attachment`] failures for material that cannot be
+    /// encoded.
+    pub fn attachment(&self) -> Result<Vec<u8>, TransactionError> {
+        Ok(SignedMessageBuilder::new(self.event.serialized())
+            .controller_signatures(self.signatures.clone())
+            .build()?
+            .attachments()
+            .to_vec())
+    }
+}
+
+impl fmt::Debug for SignedAnchor {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SignedAnchor")
+            .field("event", &self.event)
+            .field("signatures", &self.signatures.len())
+            .finish()
+    }
+}
+
+/// Builds the interaction event anchoring `seal` in the issuer's key event log, unsigned.
 ///
 /// The event lands at the state's next sequence number, over the state's digest, carrying exactly
-/// one seal — which is what both `issue` and `revoke` do.
+/// one seal — which is what both `issue` and `revoke` do. Signing it is the caller's; a multisig
+/// member's signature comes from somewhere else, and a caller may want to inspect the event before
+/// committing a key to it.
 ///
 /// # Errors
 ///
-/// Returns [`TransactionError::EstablishmentOnlyIssuer`] when the state's configuration carries
-/// `EO`, because such an identifier may only anchor in a rotation event; the reference throws
+/// Returns [`TransactionError::EstablishmentOnlyIssuer`] when the state carries `EO`, because such
+/// an identifier may only anchor in a rotation event; the reference throws
 /// `Establishment only not implemented` in the same place.
 /// [`TransactionError::SequenceNumberOverflow`] when the log cannot advance, and layered
-/// [`TransactionError::Sad`], [`TransactionError::Said`], and [`TransactionError::Identifier`]
-/// failures for material that cannot be encoded or signed.
-pub fn anchor(
-    keeper: &dyn IdentifierKeeper,
-    state: &KeyState,
-    seal: &TransactionSeal,
-) -> Result<IdentifierArtifact, TransactionError> {
-    if is_establishment_only(state) {
+/// [`TransactionError::Sad`], [`TransactionError::Said`], and [`TransactionError::Event`] failures
+/// for material that cannot be encoded.
+pub fn anchor_event(state: &AnchorState, seal: &TransactionSeal) -> Result<KeyEvent, TransactionError> {
+    if state.establishment_only {
         return Err(TransactionError::establishment_only());
     }
-    Ok(interact_identifier(keeper, state, vec![seal.to_sad()?])?)
-}
-
-/// Builds the same interaction event without signing it.
-///
-/// A multisig member's signature comes from somewhere else, and a caller may want to inspect the
-/// event before committing a key to it, so the unsigned event is available on its own. It is byte
-/// identical to the one [`anchor`] signs, which a test asserts.
-///
-/// # Errors
-///
-/// Returns [`TransactionError::EstablishmentOnlyIssuer`] and
-/// [`TransactionError::SequenceNumberOverflow`] as [`anchor`] does, plus layered
-/// [`TransactionError::Prefix`], [`TransactionError::Said`], and [`TransactionError::Event`]
-/// failures for a key state this port cannot read.
-pub fn anchor_event(state: &KeyState, seal: &TransactionSeal) -> Result<KeyEvent, TransactionError> {
-    if is_establishment_only(state) {
-        return Err(TransactionError::establishment_only());
-    }
-    let identifier = IdentifierPrefix::from_qb64(&state.identifier)?;
-    let prior = Said::from_qb64(&state.digest)?;
-    let sequence_number = next_sequence_number(state)?;
-    Ok(InteractionBuilder::new(identifier, prior, sequence_number)
-        .anchors(vec![seal.to_sad()?])
-        .build()?)
-}
-
-/// Returns the sequence number an event appended to this key state would occupy.
-///
-/// The state's own number is hexadecimal text, as the protocol writes it.
-fn next_sequence_number(state: &KeyState) -> Result<u128, TransactionError> {
-    let current = u128::from_str_radix(&state.sequence_number, 16).map_err(|_| TransactionError::Prefix {
-        source: Box::new(PrefixError::UnsupportedCode { code: "sequence" }),
-    })?;
-    current
+    let sequence_number = state
+        .sequence_number
         .checked_add(1)
-        .ok_or(TransactionError::SequenceNumberOverflow { current })
+        .ok_or(TransactionError::SequenceNumberOverflow {
+            current: state.sequence_number,
+        })?;
+    Ok(
+        InteractionBuilder::new(state.identifier.clone(), state.digest, sequence_number)
+            .anchors(vec![seal.to_sad()?])
+            .build()?,
+    )
 }
 
-/// Returns whether this key state forbids anchoring in an interaction event.
+/// Returns whether a configuration-trait list forbids anchoring in an interaction event.
+///
+/// The traits are the codes a key state reports, `EO` among them.
 #[must_use]
-pub fn is_establishment_only(state: &KeyState) -> bool {
-    state
-        .configuration
-        .iter()
-        .any(|entry| entry == ConfigurationTrait::EstablishmentOnly.as_str())
+pub fn is_establishment_only<I>(configuration: I) -> bool
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    configuration
+        .into_iter()
+        .any(|entry| entry.as_ref() == ConfigurationTrait::EstablishmentOnly.as_str())
 }
 
 /// Assembles, derives, and serializes one transaction event.
@@ -241,6 +334,18 @@ mod tests {
             TransactionError::establishment_only(),
             TransactionError::EstablishmentOnlyIssuer { trait_code: "EO" }
         ));
+    }
+
+    #[test]
+    fn a_state_reads_the_establishment_only_trait_from_its_configuration() -> Result<(), Box<dyn Error>> {
+        let identifier = IdentifierPrefix::from_qb64("EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1")?;
+        let state = AnchorState::new(identifier, 0, Said::from_qb64(CREDENTIAL)?);
+        assert!(!state.is_establishment_only());
+        assert!(!state.clone().with_configuration(["DND"]).is_establishment_only());
+        assert!(state.with_configuration(["DND", "EO"]).is_establishment_only());
+        assert!(is_establishment_only(["EO"]));
+        assert!(!is_establishment_only(Vec::<String>::new()));
+        Ok(())
     }
 
     #[test]

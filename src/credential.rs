@@ -40,9 +40,9 @@
 //! # Example
 //!
 //! ```
-//! use signify_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
-//! use signify_keri::prefix::IdentifierPrefix;
-//! use signify_keri::said::Said;
+//! use keri_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
+//! use keri_protocol::prefix::IdentifierPrefix;
+//! use keri_protocol::said::Said;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let issuer = IdentifierPrefix::from_qb64("EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1")?;
@@ -74,10 +74,10 @@ use core::fmt;
 use std::error::Error;
 
 use keri_cesr::crypto::digest::DigestAlgorithm;
-use signify_keri::event::timestamp::Timestamp;
-use signify_keri::prefix::{IdentifierPrefix, PrefixError};
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidError};
-use signify_keri::serialization::{
+use keri_protocol::event::timestamp::Timestamp;
+use keri_protocol::prefix::{IdentifierPrefix, PrefixError};
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidError};
+use keri_protocol::serialization::{
     IDENTIFIER_LABEL, SAID_LABEL, Sad, SadError, SadValue, SerializationError, SerializedEvent, VERSION_LABEL,
 };
 
@@ -221,10 +221,10 @@ impl From<IdentifierPrefix> for RegistryIdentifier {
 /// the reference does with `{ d: '', ...args.a, dt: args.a.dt ?? now }`.
 ///
 /// ```
-/// use signify_acdc::credential::CredentialAttributes;
+/// use keri_acdc::credential::CredentialAttributes;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let stamp: signify_keri::event::timestamp::Timestamp =
+/// let stamp: keri_protocol::event::timestamp::Timestamp =
 ///     "2023-08-23T15:16:07.553000+00:00".parse()?;
 ///
 /// // `dt` appended after the caller's fields, as the pinned unit test's arguments produce.
@@ -914,7 +914,7 @@ impl From<PrefixError> for CredentialError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use signify_keri::said::SaidVerification;
+    use keri_protocol::said::SaidVerification;
     use std::error::Error;
 
     const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";

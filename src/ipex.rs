@@ -22,8 +22,9 @@
 //! This module ports the pure half of `Ipex.apply`, `.offer`, `.agree`, `.grant`, and `.admit` in
 //! the pinned `src/keri/app/credentialing.ts`, together with the `createExchangeMessage`
 //! composition of `src/keri/app/exchanging.ts` that each calls. The message itself is Roadmap
-//! 3.8's [`ExchangeBuilder`]; what is added here is the route, the payload each route carries, the
-//! embeds, and the signature. Submitting the result is Roadmap 6.12.
+//! 3.8's [`ExchangeBuilder`]; what is added here is the route, the payload each route carries, and
+//! the embeds. Signing is the sender's: [`SignedIpexMessage`] pairs a message with the signatures
+//! produced over it. Submitting the result is Roadmap 6.12.
 //!
 //! # The message is required on every route
 //!
@@ -37,8 +38,8 @@
 //! # Example
 //!
 //! ```
-//! use signify_acdc::ipex::{IpexEnvelope, IpexRoute};
-//! use signify_keri::prefix::IdentifierPrefix;
+//! use keri_acdc::ipex::{IpexEnvelope, IpexRoute};
+//! use keri_protocol::prefix::IdentifierPrefix;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let envelope = IpexEnvelope::new(
@@ -54,14 +55,14 @@
 //! # }
 //! ```
 
-use signify_keri::attachment::SignedMessageBuilder;
-use signify_keri::event::Timestamp;
-use signify_keri::event::exchange::{ExchangeBuilder, ExchangeEmbed, ExchangeMessage};
-use signify_keri::manager::keeper::IdentifierKeeper;
-use signify_keri::manager::{ManagedSignatures, SignatureForm, SigningPurpose};
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::Said;
-use signify_keri::serialization::{IDENTIFIER_LABEL, Sad, SadValue, SerializedEvent};
+use core::fmt;
+
+use keri_cesr::crypto::signature::IndexedSignature;
+use keri_protocol::event::Timestamp;
+use keri_protocol::event::exchange::{ExchangeBuilder, ExchangeEmbed, ExchangeMessage};
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::Said;
+use keri_protocol::serialization::{IDENTIFIER_LABEL, Sad, SadValue, SerializedEvent};
 
 use crate::credential::Credential;
 use crate::error::IpexError;
@@ -209,12 +210,12 @@ impl IpexEnvelope {
     }
 }
 
-/// One signed IPEX message: its exchange, its signatures, and its attachment stream.
+/// One IPEX message as built, before the sender signs it: its route, its exchange, and its
+/// attachment stream.
 #[derive(Debug)]
 pub struct IpexMessage {
     route: IpexRoute,
     exchange: ExchangeMessage,
-    signatures: ManagedSignatures,
 }
 
 impl IpexMessage {
@@ -251,16 +252,82 @@ impl IpexMessage {
         self.exchange.attachments()
     }
 
-    /// Returns the sender's signatures over the message bytes.
+    /// Takes the underlying exchange message.
     #[must_use]
-    pub const fn signatures(&self) -> &ManagedSignatures {
+    pub fn into_exchange(self) -> ExchangeMessage {
+        self.exchange
+    }
+}
+
+/// One IPEX message with the sender's signatures over its bytes, ready to travel.
+pub struct SignedIpexMessage {
+    message: IpexMessage,
+    signatures: Vec<IndexedSignature>,
+}
+
+impl SignedIpexMessage {
+    /// Pairs a message with the signatures produced over [`IpexMessage::raw`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IpexError::UnsignedMessage`] when `signatures` is empty.
+    pub fn new(message: IpexMessage, signatures: Vec<IndexedSignature>) -> Result<Self, IpexError> {
+        if signatures.is_empty() {
+            return Err(IpexError::UnsignedMessage);
+        }
+        Ok(Self { message, signatures })
+    }
+
+    /// Borrows the message that was signed.
+    #[must_use]
+    pub const fn message(&self) -> &IpexMessage {
+        &self.message
+    }
+
+    /// Returns which step of the conversation this is.
+    #[must_use]
+    pub const fn route(&self) -> IpexRoute {
+        self.message.route
+    }
+
+    /// Returns the exact serialized message bytes the signatures cover.
+    #[must_use]
+    pub fn raw(&self) -> &[u8] {
+        self.message.raw()
+    }
+
+    /// Returns the message's own identifier.
+    #[must_use]
+    pub const fn said(&self) -> Said {
+        self.message.said()
+    }
+
+    /// Returns the transposed attachment stream carrying the embedded messages' material.
+    #[must_use]
+    pub fn attachments(&self) -> &[u8] {
+        self.message.attachments()
+    }
+
+    /// Returns the sender's signatures, indexed by signing-key position.
+    #[must_use]
+    pub fn signatures(&self) -> &[IndexedSignature] {
         &self.signatures
     }
 
-    /// Splits this message into its exchange and its signatures.
+    /// Splits this into the message and its signatures.
     #[must_use]
-    pub fn into_parts(self) -> (ExchangeMessage, ManagedSignatures) {
-        (self.exchange, self.signatures)
+    pub fn into_parts(self) -> (IpexMessage, Vec<IndexedSignature>) {
+        (self.message, self.signatures)
+    }
+}
+
+impl fmt::Debug for SignedIpexMessage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SignedIpexMessage")
+            .field("message", &self.message)
+            .field("signatures", &self.signatures.len())
+            .finish()
     }
 }
 
@@ -306,28 +373,20 @@ impl Disclosure {
     /// Assembles a disclosure from Roadmap 6.2's issuance artifacts.
     ///
     /// All three attachments are derived: the credential's from the issuance event, the issuance's
-    /// from the anchor, and the anchor's from the signatures the issuer's keeper produced over it.
-    /// The reference instead signs the anchor with the *sender's* keeper when no attachment is
-    /// given, which a discloser who is not the issuer cannot do correctly; here the signatures
-    /// come from the artifacts, so there is no such path.
+    /// from the anchor, and the anchor's from the signatures the issuer produced over it. The
+    /// reference instead signs the anchor with the *sender's* keeper when no attachment is given,
+    /// which a discloser who is not the issuer cannot do correctly; here the signatures come from
+    /// the artifacts, so there is no such path.
     ///
     /// # Errors
     ///
-    /// Returns layered [`IpexError::Transaction`] and [`IpexError::Attachment`] failures for
-    /// material that cannot be encoded, and [`IpexError::UnsignedAnchor`] when the artifacts carry
-    /// no indexed signatures over the anchor.
+    /// Returns layered [`IpexError::Transaction`] failures for material that cannot be encoded,
+    /// and [`IpexError::UnsignedAnchor`] when the artifacts carry no signatures over the anchor.
     pub fn from_issuance(artifacts: &IssuanceArtifacts) -> Result<Self, IpexError> {
-        let ManagedSignatures::Indexed(signatures) = &artifacts.anchor.signatures else {
-            return Err(IpexError::UnsignedAnchor);
-        };
-        if signatures.is_empty() {
+        if artifacts.anchor.signatures.is_empty() {
             return Err(IpexError::UnsignedAnchor);
         }
-        let anchor_attachment = SignedMessageBuilder::new(artifacts.anchor.event.serialized())
-            .controller_signatures(signatures.clone())
-            .build()?
-            .attachments()
-            .to_vec();
+        let anchor_attachment = artifacts.anchor.attachment()?;
 
         Ok(Self {
             credential: artifacts.credential.serialized().clone(),
@@ -368,7 +427,7 @@ impl Disclosure {
     }
 }
 
-/// Builds and signs an apply: a request for a credential satisfying `schema`.
+/// Builds an apply: a request for a credential satisfying `schema`.
 ///
 /// `attributes` narrows the request to particular attribute values — the reference's selective
 /// disclosure — and is written under the payload's own `a`. An empty block asks for any credential
@@ -377,13 +436,8 @@ impl Disclosure {
 /// # Errors
 ///
 /// Returns [`IpexError::ReservedPayloadLabel`] when the attributes carry the identifier label that
-/// names the recipient, and layered exchange and signing failures.
-pub fn apply(
-    keeper: &dyn IdentifierKeeper,
-    envelope: &IpexEnvelope,
-    schema: Said,
-    attributes: Sad,
-) -> Result<IpexMessage, IpexError> {
+/// names the recipient, and layered exchange failures.
+pub fn apply(envelope: &IpexEnvelope, schema: Said, attributes: Sad) -> Result<IpexMessage, IpexError> {
     if attributes.contains(IDENTIFIER_LABEL) {
         return Err(IpexError::ReservedPayloadLabel {
             label: IDENTIFIER_LABEL,
@@ -392,44 +446,32 @@ pub fn apply(
     let mut payload = envelope.payload()?;
     payload.insert(SCHEMA_LABEL, SadValue::Text(schema.qb64()?))?;
     payload.insert(ATTRIBUTES_LABEL, SadValue::Map(attributes))?;
-    build(keeper, envelope, IpexRoute::Apply, payload, Vec::new(), None)
+    build(envelope, IpexRoute::Apply, payload, Vec::new(), None)
 }
 
-/// Builds and signs an offer: the credential itself, embedded without attachments.
+/// Builds an offer: the credential itself, embedded without attachments.
 ///
 /// `apply` names the request being answered, and is absent when a discloser offers unprompted —
 /// which the reference's own third IPEX case exercises.
 ///
 /// # Errors
 ///
-/// Returns layered exchange and signing failures.
-pub fn offer(
-    keeper: &dyn IdentifierKeeper,
-    envelope: &IpexEnvelope,
-    credential: &Credential,
-    apply: Option<Said>,
-) -> Result<IpexMessage, IpexError> {
+/// Returns layered exchange failures.
+pub fn offer(envelope: &IpexEnvelope, credential: &Credential, apply: Option<Said>) -> Result<IpexMessage, IpexError> {
     let embeds = vec![ExchangeEmbed::new(CREDENTIAL_EMBED, credential.serialized())?];
-    build(keeper, envelope, IpexRoute::Offer, envelope.payload()?, embeds, apply)
+    build(envelope, IpexRoute::Offer, envelope.payload()?, embeds, apply)
 }
 
-/// Builds and signs an agree: acceptance of `offer`.
+/// Builds an agree: acceptance of `offer`.
 ///
 /// # Errors
 ///
-/// Returns layered exchange and signing failures.
-pub fn agree(keeper: &dyn IdentifierKeeper, envelope: &IpexEnvelope, offer: Said) -> Result<IpexMessage, IpexError> {
-    build(
-        keeper,
-        envelope,
-        IpexRoute::Agree,
-        envelope.payload()?,
-        Vec::new(),
-        Some(offer),
-    )
+/// Returns layered exchange failures.
+pub fn agree(envelope: &IpexEnvelope, offer: Said) -> Result<IpexMessage, IpexError> {
+    build(envelope, IpexRoute::Agree, envelope.payload()?, Vec::new(), Some(offer))
 }
 
-/// Builds and signs a grant: the credential with everything needed to verify it.
+/// Builds a grant: the credential with everything needed to verify it.
 ///
 /// `agree` names the acceptance being answered, and is absent when a discloser grants unprompted.
 ///
@@ -437,14 +479,8 @@ pub fn agree(keeper: &dyn IdentifierKeeper, envelope: &IpexEnvelope, offer: Said
 ///
 /// Returns layered exchange and signing failures, including the attachment refusals
 /// [`ExchangeEmbed::with_attachment`] performs on each of the three.
-pub fn grant(
-    keeper: &dyn IdentifierKeeper,
-    envelope: &IpexEnvelope,
-    disclosure: &Disclosure,
-    agree: Option<Said>,
-) -> Result<IpexMessage, IpexError> {
+pub fn grant(envelope: &IpexEnvelope, disclosure: &Disclosure, agree: Option<Said>) -> Result<IpexMessage, IpexError> {
     build(
-        keeper,
         envelope,
         IpexRoute::Grant,
         envelope.payload()?,
@@ -453,28 +489,20 @@ pub fn grant(
     )
 }
 
-/// Builds and signs an admit: acknowledgement of `grant`.
+/// Builds an admit: acknowledgement of `grant`.
 ///
 /// # Errors
 ///
-/// Returns layered exchange and signing failures.
-pub fn admit(keeper: &dyn IdentifierKeeper, envelope: &IpexEnvelope, grant: Said) -> Result<IpexMessage, IpexError> {
-    build(
-        keeper,
-        envelope,
-        IpexRoute::Admit,
-        envelope.payload()?,
-        Vec::new(),
-        Some(grant),
-    )
+/// Returns layered exchange failures.
+pub fn admit(envelope: &IpexEnvelope, grant: Said) -> Result<IpexMessage, IpexError> {
+    build(envelope, IpexRoute::Admit, envelope.payload()?, Vec::new(), Some(grant))
 }
 
-/// The composition every route performs: build the exchange, then sign it.
+/// The composition every route performs: build the exchange the sender then signs.
 ///
-/// This is the reference's `Exchanges.createExchangeMessage`, specialised to the IPEX routes. The
-/// signing form is the one every keeper-signed message in this port uses.
+/// This is the reference's `Exchanges.createExchangeMessage`, specialised to the IPEX routes and
+/// stopping short of its `keeper.sign`, which is the sender's.
 fn build(
-    keeper: &dyn IdentifierKeeper,
     envelope: &IpexEnvelope,
     route: IpexRoute,
     payload: Sad,
@@ -493,16 +521,7 @@ fn build(
         builder = builder.prior(prior);
     }
     let exchange = builder.build()?;
-    let signatures = keeper.sign(
-        exchange.raw(),
-        &SignatureForm::IndexedByPosition,
-        SigningPurpose::Current,
-    )?;
-    Ok(IpexMessage {
-        route,
-        exchange,
-        signatures,
-    })
+    Ok(IpexMessage { route, exchange })
 }
 
 #[cfg(test)]

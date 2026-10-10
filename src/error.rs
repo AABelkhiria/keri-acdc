@@ -8,13 +8,11 @@
 use core::fmt;
 use std::error::Error;
 
-use signify_keri::attachment::AttachmentError;
-use signify_keri::event::EventError;
-use signify_keri::identifier::IdentifierError;
-use signify_keri::manager::ManagerError;
-use signify_keri::prefix::PrefixError;
-use signify_keri::said::SaidError;
-use signify_keri::serialization::{SadError, SerializationError};
+use keri_protocol::attachment::AttachmentError;
+use keri_protocol::event::EventError;
+use keri_protocol::prefix::PrefixError;
+use keri_protocol::said::SaidError;
+use keri_protocol::serialization::{SadError, SerializationError};
 
 use crate::credential::CredentialError;
 
@@ -66,11 +64,6 @@ pub enum TransactionError {
         /// Underlying failure.
         source: Box<EventError>,
     },
-    /// Building or signing the anchor through the issuer's keeper failed.
-    Identifier {
-        /// Underlying failure.
-        source: Box<IdentifierError>,
-    },
     /// Encoding a CESR attachment failed.
     Attachment {
         /// Underlying failure.
@@ -102,7 +95,6 @@ impl fmt::Display for TransactionError {
             Self::Serialization { source } => write!(formatter, "serialization failed: {source}"),
             Self::Prefix { source } => write!(formatter, "identifier encoding failed: {source}"),
             Self::Event { source } => write!(formatter, "anchor construction failed: {source}"),
-            Self::Identifier { source } => write!(formatter, "anchor signing failed: {source}"),
             Self::Attachment { source } => write!(formatter, "attachment encoding failed: {source}"),
         }
     }
@@ -117,7 +109,6 @@ impl Error for TransactionError {
             Self::Serialization { source } => Some(source),
             Self::Prefix { source } => Some(source),
             Self::Event { source } => Some(source),
-            Self::Identifier { source } => Some(source),
             Self::Attachment { source } => Some(source),
             Self::EstablishmentOnlyIssuer { .. } | Self::SequenceNumberOverflow { .. } => None,
         }
@@ -142,7 +133,6 @@ layered!(SadError, Sad);
 layered!(SerializationError, Serialization);
 layered!(PrefixError, Prefix);
 layered!(EventError, Event);
-layered!(IdentifierError, Identifier);
 layered!(AttachmentError, Attachment);
 
 /// Stable failures of IPEX message construction.
@@ -165,11 +155,16 @@ pub enum IpexError {
         /// The reserved label.
         label: &'static str,
     },
-    /// A disclosure's anchoring key event carries no indexed signatures.
+    /// A disclosure's anchoring key event carries no signatures.
     ///
     /// A grant whose anchor is unsigned discloses a credential a recipient cannot verify, so it is
     /// refused rather than sent.
     UnsignedAnchor,
+    /// A signed message was given no signatures.
+    ///
+    /// Every IPEX message travels with the sender's signatures over it; one without any is not a
+    /// message a peer can accept, so it is refused rather than assembled.
+    UnsignedMessage,
     /// Building the credential's or its transaction event's artifacts failed.
     Transaction {
         /// Underlying failure.
@@ -195,11 +190,6 @@ pub enum IpexError {
         /// Underlying failure.
         source: Box<AttachmentError>,
     },
-    /// Signing the message through the sender's keeper failed.
-    Manager {
-        /// Underlying failure.
-        source: Box<ManagerError>,
-    },
 }
 
 impl fmt::Display for IpexError {
@@ -213,12 +203,12 @@ impl fmt::Display for IpexError {
                 "a payload may not carry the reserved label {label:?}, which names the recipient"
             ),
             Self::UnsignedAnchor => formatter.write_str("a disclosure's anchoring key event carries no signatures"),
+            Self::UnsignedMessage => formatter.write_str("a signed message carries no signatures"),
             Self::Transaction { source } => write!(formatter, "artifact construction failed: {source}"),
             Self::Sad { source } => write!(formatter, "payload assembly failed: {source}"),
             Self::Said { source } => write!(formatter, "identifier encoding failed: {source}"),
             Self::Event { source } => write!(formatter, "exchange construction failed: {source}"),
             Self::Attachment { source } => write!(formatter, "attachment encoding failed: {source}"),
-            Self::Manager { source } => write!(formatter, "message signing failed: {source}"),
         }
     }
 }
@@ -231,8 +221,10 @@ impl Error for IpexError {
             Self::Said { source } => Some(source),
             Self::Event { source } => Some(source),
             Self::Attachment { source } => Some(source),
-            Self::Manager { source } => Some(source),
-            Self::MessageTooLong { .. } | Self::ReservedPayloadLabel { .. } | Self::UnsignedAnchor => None,
+            Self::MessageTooLong { .. }
+            | Self::ReservedPayloadLabel { .. }
+            | Self::UnsignedAnchor
+            | Self::UnsignedMessage => None,
         }
     }
 }
@@ -254,4 +246,3 @@ layered_ipex!(SadError, Sad);
 layered_ipex!(SaidError, Said);
 layered_ipex!(EventError, Event);
 layered_ipex!(AttachmentError, Attachment);
-layered_ipex!(ManagerError, Manager);

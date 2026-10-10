@@ -1,14 +1,16 @@
-//! ACDC credential issuance, presentation, verification, and revocation logic.
+//! ACDC credentials: the container, its issuance and revocation events, and the IPEX messages
+//! that disclose it.
 //!
-//! Roadmap 6.1 contributes [`credential`]: the container itself and the two self-addressing
-//! identifiers that give it its identity. Roadmap 6.2 adds what makes that container *valid* —
-//! [`issuance`] and [`revocation`], the transaction events that record a credential's status in
-//! its registry's log, together with the [`transaction`] machinery both share and the CESR
-//! attachments binding each artifact to the next.
+//! [`credential`] builds the container itself and the two self-addressing identifiers that give
+//! it its identity. [`issuance`] and [`revocation`] build the transaction events that record a
+//! credential's status in its registry's log, on the [`transaction`] machinery both share: the
+//! seal that binds a transaction event to the issuer's key event log, the unsigned interaction
+//! event carrying it, and the CESR attachments binding each artifact to the next. [`ipex`] builds
+//! the five messages two controllers exchange to disclose a credential.
 //!
-//! Roadmap 6.3 adds [`ipex`], the five messages two controllers exchange to disclose a credential.
-//! Nothing in this crate performs networking or knows a KERIA endpoint; submitting any of these
-//! artifacts is `signify-client`'s.
+//! Everything here is built unsigned. Signing is the caller's, with whatever holds its keys, and
+//! [`transaction::SignedAnchor`] and [`ipex::SignedIpexMessage`] carry the result. Nothing in this
+//! crate performs networking, reads a clock, or knows a KERIA endpoint.
 
 #![forbid(unsafe_code)]
 

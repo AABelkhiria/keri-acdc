@@ -11,20 +11,20 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 
-use keria_types::api::KeyState;
+use keri_acdc::credential::RegistryIdentifier;
+use keri_acdc::error::TransactionError;
+use keri_acdc::issuance::IssuanceEvent;
+use keri_acdc::revocation::RevocationEventBuilder;
+use keri_acdc::transaction::{AnchorState, TransactionSeal, anchor_event, is_establishment_only};
+use keri_protocol::attachment::{AttachmentFraming, SealSourceCouple};
+use keri_protocol::event::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
+use keri_protocol::serialization::{Sad, SerializedEvent};
 use serde::Deserialize;
-use signify_acdc::credential::RegistryIdentifier;
-use signify_acdc::error::TransactionError;
-use signify_acdc::issuance::IssuanceEvent;
-use signify_acdc::revocation::RevocationEventBuilder;
-use signify_acdc::transaction::{TransactionSeal, anchor_event, is_establishment_only};
-use signify_keri::attachment::{AttachmentFraming, SealSourceCouple};
-use signify_keri::event::Timestamp;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
-use signify_keri::serialization::{Sad, SerializedEvent};
 
 const REFERENCE_SHA: &str = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
-const FIXTURE: &str = include_str!("../../../fixtures/acdc-issuance/v1.json");
+const FIXTURE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/acdc-issuance/v1.json"));
 
 #[derive(Debug, Deserialize)]
 struct Fixture {
@@ -231,28 +231,13 @@ const ECR_CREDENTIAL: &str = "ECV74hW2vMvUaBbpgbsoTyl79D5pRhyIXTpVXn4tn-bi";
 const PUBLISHED_ISSUANCE: &str = "ENf3IEYwYtFmlq5ZzoI-zFzeR7E3ZNRN2YH_0KAFbdJW";
 const OTHER_TIMESTAMP: &str = "2021-06-27T21:26:21.233257+00:00";
 
-/// A key state carrying only the fields anchoring reads: identifier, position, and digest.
-fn key_state(identifier: &str, sequence_number: u128, digest: &str) -> Result<KeyState, Box<dyn Error>> {
-    let document = serde_json::json!({
-        "vn": [1, 0],
-        "i": identifier,
-        "s": format!("{sequence_number:x}"),
-        "p": "",
-        "d": digest,
-        "f": "0",
-        "dt": "2023-08-23T15:16:07.553000+00:00",
-        "et": "icp",
-        "kt": "1",
-        "k": ["DAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2QtV8BB0C"],
-        "nt": "1",
-        "n": ["EAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2QtV8BB0C"],
-        "bt": "0",
-        "b": [],
-        "c": [],
-        "ee": {"s": "0", "d": digest, "br": [], "ba": []},
-        "di": "",
-    });
-    Ok(serde_json::from_value(document)?)
+/// A key state carrying only what anchoring reads: identifier, position, and digest.
+fn key_state(identifier: &str, sequence_number: u128, digest: &str) -> Result<AnchorState, Box<dyn Error>> {
+    Ok(AnchorState::new(
+        IdentifierPrefix::from_qb64(identifier)?,
+        sequence_number,
+        Said::from_qb64(digest)?,
+    ))
 }
 
 /// The (issuer, sequence number, prior digest) each recorded case anchors against.
@@ -379,7 +364,7 @@ fn the_ported_expressions_are_the_references_own() -> Result<(), Box<dyn Error>>
     // The three constants this port hard-codes, read from the reference rather than assumed.
     assert_eq!(
         declarations.keri_version_string,
-        signify_acdc::transaction::UNSIZED_VERSION_STRING
+        keri_acdc::transaction::UNSIZED_VERSION_STRING
     );
     assert_eq!(declarations.issuance_ilk, "iss");
     assert_eq!(declarations.revocation_ilk, "rev");
@@ -555,8 +540,8 @@ fn both_serializer_vectors_the_reference_publishes_reproduce() -> Result<(), Box
         0,
         Said::from_qb64(acdc_input.get_text("d").ok_or("no said")?)?,
     );
-    let triple = signify_keri::attachment::SealSourceTriple::new(
-        signify_keri::prefix::IdentifierPrefix::SelfAddressing(seal.credential()),
+    let triple = keri_protocol::attachment::SealSourceTriple::new(
+        keri_protocol::prefix::IdentifierPrefix::SelfAddressing(seal.credential()),
         seal.sequence_number().into(),
         seal.said(),
     );
@@ -678,9 +663,9 @@ fn every_reference_quirk_holds_and_the_divergence_is_deliberate() -> Result<(), 
     assert_eq!(establishment.scan.files.first().map(|hit| hit.count), Some(2));
     assert!(establishment.scan.scanned_files > 100);
 
-    let mut state = key_state(&fixture.provenance.issuer, 0, &fixture.provenance.credential)?;
-    state.configuration = vec!["EO".to_owned()];
-    assert!(is_establishment_only(&state));
+    let state = key_state(&fixture.provenance.issuer, 0, &fixture.provenance.credential)?.with_configuration(["EO"]);
+    assert!(state.is_establishment_only());
+    assert!(is_establishment_only(["EO"]));
     let issuance = IssuanceEvent::new(credential, registry, timestamp)?;
     assert!(matches!(
         anchor_event(&state, &issuance.seal()),

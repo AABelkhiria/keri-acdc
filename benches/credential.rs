@@ -13,11 +13,11 @@
 use std::hint::black_box;
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use signify_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
-use signify_keri::event::timestamp::Timestamp;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said};
-use signify_keri::serialization::{Sad, SadValue};
+use keri_acdc::credential::{CredentialAttributes, CredentialBuilder, RegistryIdentifier};
+use keri_protocol::event::timestamp::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said};
+use keri_protocol::serialization::{Sad, SadValue};
 
 const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
 const HOLDER: &str = "EKvn1M6shPLnXTb47bugVJblKMuWC0TcLIePP8p98Bby";
@@ -66,7 +66,7 @@ fn le_rules() -> Option<Sad> {
     rules.insert("usageDisclaimer", SadValue::Map(usage)).ok()?;
     rules.insert("issuanceDisclaimer", SadValue::Map(issuance)).ok()?;
     Some(
-        Said::compute(&rules, signify_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
+        Said::compute(&rules, keri_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
             .ok()?
             .into_parts()
             .1,
@@ -84,7 +84,7 @@ fn le_edges() -> Option<Sad> {
     edges.insert(DEFAULT_SAID_LABEL, SadValue::text("")).ok()?;
     edges.insert("qvi", SadValue::Map(qvi)).ok()?;
     Some(
-        Said::compute(&edges, signify_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
+        Said::compute(&edges, keri_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
             .ok()?
             .into_parts()
             .1,

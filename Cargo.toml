@@ -1,35 +1,44 @@
 [package]
-name = "signify-acdc"
+name = "keri-acdc"
 version = "0.0.0"
-description = "ACDC credential protocol support for Signify"
-edition.workspace = true
-rust-version.workspace = true
-publish.workspace = true
-keywords.workspace = true
-categories.workspace = true
+description = "ACDC credentials: the container, issuance and revocation events, and IPEX messages"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+keywords = ["keri", "acdc", "ipex", "credentials", "identity"]
+categories = ["cryptography", "encoding"]
 
 [dependencies]
-keri-cesr.workspace = true
-signify-keri = { path = "../signify-keri" }
-keria-types.workspace = true
+keri-cesr = { version = "0.1.0", features = ["crypto"] }
+keri-protocol = "0.1.0"
 
 [dev-dependencies]
-criterion.workspace = true
-proptest.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.151", default-features = false, features = ["std"] }
 
 [[bench]]
 name = "credential"
 harness = false
 
-[[bench]]
-name = "issuance"
-harness = false
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
 
-[[bench]]
-name = "ipex"
-harness = false
-
-[lints]
-workspace = true
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+allow_attributes = "deny"
+dbg_macro = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"

@@ -9,17 +9,17 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 
-use serde::Deserialize;
-use signify_acdc::credential::{
+use keri_acdc::credential::{
     Credential, CredentialAttributes, CredentialBlock, CredentialBuilder, CredentialError, RegistryIdentifier,
 };
-use signify_keri::event::timestamp::Timestamp;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
-use signify_keri::serialization::{Sad, SadValue};
+use keri_protocol::event::timestamp::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
+use keri_protocol::serialization::{Sad, SadValue};
+use serde::Deserialize;
 
 const REFERENCE_SHA: &str = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
-const FIXTURE: &str = include_str!("../../../fixtures/acdc-credential/v1.json");
+const FIXTURE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/acdc-credential/v1.json"));
 
 #[derive(Debug, Deserialize)]
 struct Fixture {
@@ -318,7 +318,7 @@ fn the_ported_expressions_are_the_references_own() -> Result<(), Box<dyn Error>>
     // The two constants this port hard-codes, read from the reference rather than assumed.
     assert_eq!(
         declarations.acdc_version_string,
-        signify_acdc::credential::UNSIZED_VERSION_STRING
+        keri_acdc::credential::UNSIZED_VERSION_STRING
     );
     assert_eq!(declarations.digest_code, "E");
     Ok(())

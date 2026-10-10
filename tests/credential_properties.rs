@@ -1,15 +1,15 @@
 //! Invariants of ACDC credential construction.
 
-use proptest::prelude::*;
-use signify_acdc::credential::{
+use keri_acdc::credential::{
     ATTRIBUTES_LABEL, CredentialAttributes, CredentialBlock, CredentialBuilder, CredentialError, EDGES_LABEL,
     MAX_BLOCK_DEPTH, MAX_LABEL_BYTES, MAX_NONCE_BYTES, NONCE_LABEL, RULES_LABEL, RegistryIdentifier, SCHEMA_LABEL,
     TIMESTAMP_LABEL,
 };
-use signify_keri::event::timestamp::Timestamp;
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
-use signify_keri::serialization::{Sad, SadValue, SerializedEvent};
+use keri_protocol::event::timestamp::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::{DEFAULT_SAID_LABEL, Said, SaidVerification};
+use keri_protocol::serialization::{Sad, SadValue, SerializedEvent};
+use proptest::prelude::*;
 
 const ISSUER: &str = "EMQQpnSkgfUOgWdzQTWfrgiVHKIDAhvAZIPQ6z3EAfz1";
 const HOLDER: &str = "EKvn1M6shPLnXTb47bugVJblKMuWC0TcLIePP8p98Bby";
@@ -324,7 +324,7 @@ proptest! {
             inner.insert("n", SadValue::text("ENODE")).map_err(fail)?;
             block.insert(label.clone(), SadValue::Map(inner)).map_err(fail)?;
         }
-        let computed = Said::compute(&block, signify_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
+        let computed = Said::compute(&block, keri_acdc::credential::DIGEST_ALGORITHM, DEFAULT_SAID_LABEL)
             .map_err(fail)?;
         let (block_said, block) = computed.into_parts();
 

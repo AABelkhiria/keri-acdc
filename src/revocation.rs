@@ -20,9 +20,9 @@
 //! # Example
 //!
 //! ```
-//! use signify_acdc::credential::RegistryIdentifier;
-//! use signify_acdc::revocation::RevocationEventBuilder;
-//! use signify_keri::said::Said;
+//! use keri_acdc::credential::RegistryIdentifier;
+//! use keri_acdc::revocation::RevocationEventBuilder;
+//! use keri_protocol::said::Said;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let revocation = RevocationEventBuilder::new(
@@ -39,17 +39,14 @@
 //! # }
 //! ```
 
-use keria_types::api::KeyState;
-use signify_keri::event::Timestamp;
-use signify_keri::event::kind::EventKind;
-use signify_keri::identifier::artifact::IdentifierArtifact;
-use signify_keri::manager::keeper::IdentifierKeeper;
-use signify_keri::said::Said;
-use signify_keri::serialization::{Sad, SerializedEvent};
+use keri_protocol::event::Timestamp;
+use keri_protocol::event::kind::EventKind;
+use keri_protocol::said::Said;
+use keri_protocol::serialization::{Sad, SerializedEvent};
 
 use crate::credential::RegistryIdentifier;
 use crate::error::TransactionError;
-use crate::transaction::{TransactionSeal, anchor, assemble};
+use crate::transaction::{SignedAnchor, TransactionSeal, assemble};
 
 /// Position of a revocation in a credential's transaction event log when nothing else intervenes.
 ///
@@ -205,32 +202,14 @@ pub struct RevocationArtifacts {
     /// The transaction event recording the revocation.
     pub revocation: RevocationEvent,
     /// The issuer's interaction event sealing that transaction event, with its signatures.
-    pub anchor: IdentifierArtifact,
-}
-
-/// Revokes a credential: anchors `revocation` in the issuer's key event log and signs it.
-///
-/// This is the pure half of the reference's `Credentials.revoke`. Unlike issuance it produces no
-/// attachments, because nothing upstream carries a revocation in a disclosure.
-///
-/// # Errors
-///
-/// Returns [`TransactionError::EstablishmentOnlyIssuer`] when the issuer's configuration carries
-/// `EO`, and the layered failures listed on [`crate::transaction::anchor`].
-pub fn revoke_credential(
-    keeper: &dyn IdentifierKeeper,
-    state: &KeyState,
-    revocation: RevocationEvent,
-) -> Result<RevocationArtifacts, TransactionError> {
-    let anchor = anchor(keeper, state, &revocation.seal())?;
-    Ok(RevocationArtifacts { revocation, anchor })
+    pub anchor: SignedAnchor,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::transaction::PRIOR_LABEL;
-    use signify_keri::said::{DEFAULT_SAID_LABEL, SaidVerification};
+    use keri_protocol::said::{DEFAULT_SAID_LABEL, SaidVerification};
     use std::error::Error;
 
     const CREDENTIAL: &str = "EMwcsEMUEruPXVwPCW7zmqmN8m0I3CihxolBm-RDrsJo";

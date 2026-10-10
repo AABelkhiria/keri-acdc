@@ -14,21 +14,20 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 
-use keri_cesr::crypto::salt::{Salt, SecurityTier};
-use serde::Deserialize;
-use signify_acdc::credential::{Credential, RegistryIdentifier};
-use signify_acdc::ipex::{
+use keri_acdc::credential::{Credential, RegistryIdentifier};
+use keri_acdc::ipex::{
     ANCHOR_EMBED, ATTRIBUTES_LABEL, CREDENTIAL_EMBED, Disclosure, ISSUANCE_EMBED, IpexEnvelope, IpexRoute,
-    MESSAGE_LABEL, SCHEMA_LABEL, admit, agree, apply, grant, offer,
+    MESSAGE_LABEL, SCHEMA_LABEL, SignedIpexMessage, admit, agree, apply, grant, offer,
 };
-use signify_keri::event::Timestamp;
-use signify_keri::manager::{DerivationCost, IdentifierKeeper, KeeperFactory};
-use signify_keri::prefix::IdentifierPrefix;
-use signify_keri::said::Said;
-use signify_keri::serialization::{Sad, SadValue, SerializedEvent};
+use keri_cesr::crypto::signature::IndexedSignature;
+use keri_protocol::event::Timestamp;
+use keri_protocol::prefix::IdentifierPrefix;
+use keri_protocol::said::Said;
+use keri_protocol::serialization::{Sad, SadValue, SerializedEvent};
+use serde::Deserialize;
 
 const REFERENCE_SHA: &str = "91a04a5edd804425f42be75ffbf034f8d14e5cb2";
-const FIXTURE: &str = include_str!("../../../fixtures/acdc-ipex/v1.json");
+const FIXTURE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/acdc-ipex/v1.json"));
 
 #[derive(Debug, Deserialize)]
 struct Fixture {
@@ -180,22 +179,6 @@ fn fixture() -> Result<Fixture, Box<dyn Error>> {
 const SCHEMA: &str = "EBfdlu8R27Fbx-ehrqwImnK-8Cm79sqbAQ4MmvEAYqao";
 const LEI: &str = "5493001KJTIIGC8Y1R17";
 
-/// The sender's keeper, derived from the passcode the pinned tests publish at the reference's own
-/// production cost, so its signatures are the ones the reference recorded.
-fn keeper(passcode: &str) -> Result<Box<dyn IdentifierKeeper>, Box<dyn Error>> {
-    let salt = Salt::from_qb64(&format!("0AA{}", &passcode[..21]), SecurityTier::Low)?;
-    let factory = KeeperFactory::new(salt);
-    let request =
-        signify_keri::identifier::CreateIdentifierRequest::new(signify_keri::identifier::CreateAlgorithm::Salty {
-            passcode: Some(passcode.to_owned()),
-            tier: SecurityTier::Low,
-            current_count: 1,
-            next_count: 1,
-            cost: DerivationCost::Production,
-        });
-    Ok(factory.create(request.keeper_request(0)?)?)
-}
-
 fn envelope(fixture: &Fixture, message: &str) -> Result<IpexEnvelope, Box<dyn Error>> {
     Ok(IpexEnvelope::new(
         IdentifierPrefix::from_qb64(&fixture.provenance.sender)?,
@@ -207,7 +190,7 @@ fn envelope(fixture: &Fixture, message: &str) -> Result<IpexEnvelope, Box<dyn Er
 
 /// The credential the pinned suite discloses, rebuilt from the fixture's recorded bytes.
 fn credential(fixture: &Fixture) -> Result<Credential, Box<dyn Error>> {
-    use signify_acdc::credential::{CredentialAttributes, CredentialBuilder};
+    use keri_acdc::credential::{CredentialAttributes, CredentialBuilder};
     let sad = Sad::from_json_bytes(fixture.embedded_artifacts.acdc_raw.as_bytes())?;
     let attributes = sad
         .get("a")
@@ -229,8 +212,8 @@ fn credential(fixture: &Fixture) -> Result<Credential, Box<dyn Error>> {
 
 /// The disclosure a grant carries, assembled from the fixture's three recorded artifacts.
 fn disclosure(fixture: &Fixture) -> Result<Disclosure, Box<dyn Error>> {
-    use signify_acdc::issuance::IssuanceEvent;
-    use signify_keri::attachment::{AttachmentFraming, SealSourceCouple};
+    use keri_acdc::issuance::IssuanceEvent;
+    use keri_protocol::attachment::{AttachmentFraming, SealSourceCouple};
 
     let credential = credential(fixture)?;
     let issuance = IssuanceEvent::for_credential(&credential)?;
@@ -268,6 +251,11 @@ fn the_manifest_matches_the_pinned_reference() -> Result<(), Box<dyn Error>> {
     assert!(fixture.sources.iter().any(|source| source.ends_with("exchanging.ts")));
     assert_ne!(fixture.provenance.note, "");
     assert!(fixture.provenance.passcode_note.contains("PUBLIC TEST MATERIAL"));
+    assert_eq!(
+        fixture.provenance.passcode.len(),
+        21,
+        "the published passcode the signatures derive from"
+    );
     assert_ne!(fixture.embedded_artifacts.note, "");
     assert_eq!(fixture.messages.len(), 8);
     Ok(())
@@ -329,7 +317,6 @@ fn the_routes_are_the_literals_the_reference_writes() -> Result<(), Box<dyn Erro
 #[test]
 fn every_message_matches_byte_for_byte() -> Result<(), Box<dyn Error>> {
     let fixture = fixture()?;
-    let keeper = keeper(&fixture.provenance.passcode)?;
     let credential = credential(&fixture)?;
     let disclosure = disclosure(&fixture)?;
     let schema = Said::from_qb64(SCHEMA)?;
@@ -344,34 +331,18 @@ fn every_message_matches_byte_for_byte() -> Result<(), Box<dyn Error>> {
 
     for (name, expected) in &fixture.messages {
         let built = match name.as_str() {
-            "apply" => apply(
-                keeper.as_ref(),
-                &envelope(&fixture, "Applying")?,
-                schema,
-                attributes.clone(),
-            )?,
-            "apply_defaults" => apply(keeper.as_ref(), &envelope(&fixture, "")?, schema, Sad::new())?,
+            "apply" => apply(&envelope(&fixture, "Applying")?, schema, attributes.clone())?,
+            "apply_defaults" => apply(&envelope(&fixture, "")?, schema, Sad::new())?,
             "offer" => offer(
-                keeper.as_ref(),
                 &envelope(&fixture, "How about this")?,
                 &credential,
                 Some(said_of("apply")?),
             )?,
-            "offer_without_apply" => offer(
-                keeper.as_ref(),
-                &envelope(&fixture, "How about this")?,
-                &credential,
-                None,
-            )?,
-            "agree" => agree(keeper.as_ref(), &envelope(&fixture, "OK!")?, said_of("offer")?)?,
-            "grant" => grant(
-                keeper.as_ref(),
-                &envelope(&fixture, "")?,
-                &disclosure,
-                Some(said_of("agree")?),
-            )?,
-            "grant_without_agree" => grant(keeper.as_ref(), &envelope(&fixture, "")?, &disclosure, None)?,
-            "admit" => admit(keeper.as_ref(), &envelope(&fixture, "")?, said_of("grant")?)?,
+            "offer_without_apply" => offer(&envelope(&fixture, "How about this")?, &credential, None)?,
+            "agree" => agree(&envelope(&fixture, "OK!")?, said_of("offer")?)?,
+            "grant" => grant(&envelope(&fixture, "")?, &disclosure, Some(said_of("agree")?))?,
+            "grant_without_agree" => grant(&envelope(&fixture, "")?, &disclosure, None)?,
+            "admit" => admit(&envelope(&fixture, "")?, said_of("grant")?)?,
             other => return Err(format!("unknown message case {other:?}").into()),
         };
 
@@ -401,8 +372,22 @@ fn every_message_matches_byte_for_byte() -> Result<(), Box<dyn Error>> {
             .unwrap_or_default();
         assert_eq!(embeds, expected.embed_labels, "{name}");
 
-        // And the signatures the reference's own keeper produced.
-        assert_eq!(built.signatures().qb64()?, expected.signatures, "{name}");
+        // The signatures the reference's own keeper produced travel with the message as recorded.
+        let signatures = expected
+            .signatures
+            .iter()
+            .map(|qb64| IndexedSignature::from_qb64(qb64))
+            .collect::<Result<Vec<_>, _>>()?;
+        let signed = SignedIpexMessage::new(built, signatures)?;
+        let carried = signed
+            .signatures()
+            .iter()
+            .map(IndexedSignature::qb64)
+            .collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(carried, expected.signatures, "{name}");
+        assert_eq!(signed.raw(), expected.raw.as_bytes(), "{name}");
+        assert_eq!(signed.said().qb64()?, expected.said, "{name}");
+        assert_eq!(signed.route().as_str(), expected.route, "{name}");
     }
     Ok(())
 }
@@ -599,17 +584,11 @@ fn every_reference_quirk_holds_and_the_divergence_is_deliberate() -> Result<(), 
     //    one naming the recipient label is refused rather than silently readdressing the message.
     let attributes_quirk = &quirks.attributes_are_an_untyped_record;
     assert!(attributes_quirk.payload_expression.contains("args.attributes"));
-    let keeper = keeper(&fixture.provenance.passcode)?;
     let mut hostile = Sad::new();
     hostile.insert("i", SadValue::text("EHIJACK"))?;
     assert!(matches!(
-        apply(
-            keeper.as_ref(),
-            &envelope(&fixture, "")?,
-            Said::from_qb64(SCHEMA)?,
-            hostile,
-        ),
-        Err(signify_acdc::error::IpexError::ReservedPayloadLabel { label: "i" })
+        apply(&envelope(&fixture, "")?, Said::from_qb64(SCHEMA)?, hostile),
+        Err(keri_acdc::error::IpexError::ReservedPayloadLabel { label: "i" })
     ));
     Ok(())
 }
@@ -621,7 +600,7 @@ fn the_embedded_artifacts_are_the_ones_earlier_items_build() -> Result<(), Box<d
     assert_eq!(credential.raw(), fixture.embedded_artifacts.acdc_raw.as_bytes());
     assert_eq!(credential.said().qb64()?, fixture.provenance.credential);
 
-    let issuance = signify_acdc::issuance::IssuanceEvent::for_credential(&credential)?;
+    let issuance = keri_acdc::issuance::IssuanceEvent::for_credential(&credential)?;
     assert_eq!(issuance.raw(), fixture.embedded_artifacts.iss_raw.as_bytes());
     assert_eq!(issuance.said().qb64()?, fixture.provenance.issuance);
 
