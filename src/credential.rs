@@ -24,7 +24,7 @@
 //! # What this port refuses
 //!
 //! The reference validates none of its inputs. Four of its behaviours are recorded in
-//! `fixtures/acdc-credential/` and deliberately not reproduced, because each derives an identifier
+//! `fixtures/credential/` and deliberately not reproduced, because each derives an identifier
 //! from something other than what the caller supplied:
 //!
 //! - **JavaScript hoists array-index-like keys.** An attribute named `0` is serialized ahead of

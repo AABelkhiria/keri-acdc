@@ -14,8 +14,8 @@ Generate and verify from the repository root after building the pinned checkout:
 
 ```bash
 npm --prefix reference/signify-ts run build
-node tools/reference-vectors/acdc_credential.mjs --write   # regenerate
-node tools/reference-vectors/acdc_credential.mjs --check   # verify determinism
+node tools/reference-vectors/credential.mjs --write   # regenerate
+node tools/reference-vectors/credential.mjs --check   # verify determinism
 ```
 
 ## Determinism

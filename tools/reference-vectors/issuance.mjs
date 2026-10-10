@@ -562,11 +562,11 @@ const fixture = {
   reference_quirks: quirks,
 };
 
-const outputUrl = new URL("../../fixtures/acdc-issuance/v1.json", import.meta.url);
+const outputUrl = new URL("../../fixtures/issuance/v1.json", import.meta.url);
 const rendered = `${JSON.stringify(fixture, null, 2)}\n`;
 if (process.argv.includes("--check")) {
   if (readFileSync(outputUrl, "utf8") !== rendered) {
-    throw new Error("acdc-issuance fixture is stale; run with --write");
+    throw new Error("issuance fixture is stale; run with --write");
   }
 } else if (process.argv.includes("--write")) {
   writeFileSync(outputUrl, rendered);

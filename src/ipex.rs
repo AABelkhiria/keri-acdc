@@ -33,7 +33,7 @@
 //! `m` field at all** — a different message with a different identifier from one carrying the
 //! empty string. Whether the field exists at all should not depend on which argument a caller
 //! happened to omit, so the message is required here and an empty one is spelled explicitly. See
-//! `fixtures/acdc-ipex/`.
+//! `fixtures/ipex/`.
 //!
 //! # Example
 //!

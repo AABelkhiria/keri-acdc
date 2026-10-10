@@ -15,7 +15,7 @@
 //! digest is read from `cred.status.d`, the state KERIA returns, so it cannot build a revocation
 //! without a round trip first. Both are ordinary inputs here — defaulting to the reference's
 //! values — which makes a revocation constructible offline and correct in a backed registry whose
-//! log carries backer rotations. See `fixtures/acdc-issuance/`.
+//! log carries backer rotations. See `fixtures/issuance/`.
 //!
 //! # Example
 //!
