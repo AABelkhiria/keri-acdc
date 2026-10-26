@@ -14,7 +14,7 @@ exclude = [".github/", "tools/", "deny.toml", "rustfmt.toml", "rust-toolchain.to
 
 [dependencies]
 keri-cesr = { version = "0.1.0", features = ["crypto"] }
-keri-protocol = "0.1.0"
+keri-protocol = "0.2.0"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }

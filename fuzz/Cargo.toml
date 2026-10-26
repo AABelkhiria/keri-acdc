@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 keri-acdc = { path = ".." }
 keri-cesr = { version = "0.1.0", features = ["crypto"] }
-keri-protocol = "0.1.0"
+keri-protocol = "0.2.0"
 libfuzzer-sys = "0.4.13"
 
 [[bin]]

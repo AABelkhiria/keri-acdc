@@ -536,9 +536,9 @@ dependencies = [
 
 [[package]]
 name = "keri-protocol"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12c4d4106a7ff785708d758376777df8957980df3ce5a86d4caa62c6eddd3021"
+checksum = "ee71975cf4ac02e9e9360a57a1d145bd6d3f1bb9ac286970e9f3d8ed2526f131"
 dependencies = [
  "keri-cesr",
  "serde_json",
