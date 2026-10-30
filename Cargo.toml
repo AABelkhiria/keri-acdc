@@ -1,6 +1,6 @@
 [package]
 name = "keri-acdc"
-version = "0.1.0"
+version = "0.2.0"
 description = "ACDC credentials: the container, issuance and revocation events, and IPEX messages"
 edition = "2024"
 rust-version = "1.97"
